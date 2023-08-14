@@ -1,0 +1,24 @@
+
+[package]
+name = "textminer"
+version = "0.1.0"
+authors = ["SIPU <ddasik00@naver.com>"]
+edition = "2018"
+
+[profile.release]
+opt-level = 'z'
+lto=true
+codegen-units=1
+
+[dependencies]
+tokio = { version = "1.30.0", features = ["full"] }
+chrono = "0.4.26"
+serde="1.0.183"
+serde_json="1.0.104"
+serde_derive="1.0.183"
+derive_more = "0.99.17"
+reqwest = { version = "0.11.18", features = ["blocking","socks","json"] }
+scraper = "0.17.1"
+time = "0.3.25"
+anyhow = "1.0.72"
+futures = "0.3.28"
