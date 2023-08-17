@@ -5,7 +5,6 @@ use std::path::Path;
 use std::collections::HashSet;
 use scraper::{Html, Selector};
 use chrono::{Duration, Utc,};
-
 mod utils;
 
 
@@ -44,6 +43,7 @@ pub struct Images {
     pub link: String,
     pub file_name: String,
     pub path: String,
+    pub subpath: String,
 }
 
 const SAVE_PATH: &str = "./save.json";
@@ -131,14 +131,15 @@ async fn main() -> std::io::Result<()> {
                 if path.len() > 0 {
                     let _url = format!("{}{}","https://gall.dcinside.com",&_downlink.link);
                     let html = utils::get_text_response(&_url).await;
-                    let mut _list: Vec<Images> = parse_dcimage(&html, &path);
+                    let mut _list: Vec<Images> = parse_dcimage(&html, &path, &_downlink.title);
                     down_image_list.append(&mut _list);
                 }
             }
 
             for _down in down_image_list.iter_mut() {
                 let data = utils::get_byte_response(&_down.link).await;
-                let path = format!("{}/{}",&_down.path, Utc::now().format("%Y-%m-%d"));
+
+                let path = format!("{}/{}",&_down.path, &_down.subpath);
                 let _ = utils::make_file(&path, &_down.file_name, &data);
             }
             println!("End Of job");    
@@ -162,11 +163,24 @@ fn check_download(_title : &str) -> String {
     _path
 }
 
-fn parse_dcimage(html: &str, path: &str) -> Vec<Images> {
+fn parse_dcimage(html: &str, path: &str, title: &str) -> Vec<Images> {
     let mut nums = 1;
     let mut _list: Vec<Images> = vec![];
     let fragment = Html::parse_fragment(&html);
     let images = Selector::parse(r#"img"#).unwrap();
+
+    //title fix
+    let tag = regex::Regex::new(r"<.*?>");
+    let mut _title = tag.expect("REASON").replace_all(title, "");
+    _title = _title.replace("/","").into();
+    _title = _title.replace("\\","").into();
+    _title = _title.replace(":","").into();
+    _title = _title.replace("*","").into();
+    _title = _title.replace("?","").into();
+    _title = _title.replace("\"","").into();
+    _title = _title.replace(">","").into();
+    _title = _title.replace("<","").into();
+    _title = _title.replace("|","").into();
 
     for element in fragment.select(&images) {
         //println!("{:#?}", element.value());    
@@ -178,6 +192,7 @@ fn parse_dcimage(html: &str, path: &str) -> Vec<Images> {
                 link: url.to_string(),
                 file_name:format!("{}{}",nums,".jpg"),
                 path:path.to_string(),
+                subpath:_title.to_string(),
             });
             nums += 1;
         }
