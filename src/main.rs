@@ -4,7 +4,8 @@ extern crate serde_derive;
 use std::path::Path;
 use std::collections::HashSet;
 use scraper::{Html, Selector};
-use chrono::{Duration, Utc,};
+use chrono::{Utc,};
+use chrono_tz::Asia::Seoul;
 mod utils;
 
 
@@ -57,7 +58,7 @@ async fn main() -> std::io::Result<()> {
     let mut save_list : Vec<Save> = serde_json::from_value(utils::file_read_to_json(SAVE_PATH).unwrap_or_default()).unwrap_or_default();
 
     let __loop = tokio::task::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(900));
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(900));
         loop {
             interval.tick().await;
         
@@ -202,7 +203,7 @@ fn parse_dcimage(html: &str, path: &str, title: &str) -> Vec<Images> {
 
 fn parse_dc(html : &str) -> Vec<List> {
     let mut _list: Vec<List> = vec![];
-    let _today = Utc::now() + Duration::hours(9);
+    let _today = Utc::now().with_timezone(&Seoul);
     let fragment = Html::parse_fragment(html);
     let part = Selector::parse("tr.ub-content").unwrap();
     let title = Selector::parse("td.gall_tit > a").unwrap();
@@ -245,7 +246,7 @@ fn parse_dc(html : &str) -> Vec<List> {
 
 fn parse_fm(html : &str) -> Vec<List> {
     let mut _list: Vec<List> = vec![];
-    let _today = Utc::now() + Duration::hours(9);
+    let _today = Utc::now().with_timezone(&Seoul);
     let fragment = Html::parse_fragment(html);
     let part = Selector::parse("div.li").unwrap();
     let a = Selector::parse("h3.title > a").unwrap();
@@ -274,7 +275,7 @@ fn parse_fm(html : &str) -> Vec<List> {
 fn parse_mp(html : &str) -> Vec<List> {
     let mut _list: Vec<List> = vec![];
     let fragment = Html::parse_fragment(html);
-    let _today = Utc::now() + Duration::hours(9);
+    let _today = Utc::now().with_timezone(&Seoul);
     let table = Selector::parse("table.tbl_type01").unwrap();
     let tr = Selector::parse("tbody > tr").unwrap();
     let a = Selector::parse("td.t_left > a").unwrap();
@@ -306,7 +307,7 @@ fn parse_mp(html : &str) -> Vec<List> {
 
 fn parse_mp_part_low(html : &str) -> Vec<List> {
     let mut _list: Vec<List> = vec![];
-    let _today = Utc::now() + Duration::hours(9);
+    let _today = Utc::now().with_timezone(&Seoul);
     let fragment = Html::parse_fragment(html);
 
     let div = Selector::parse("div.lists_today_contxt").unwrap();
@@ -337,7 +338,7 @@ fn load_file_to_list(path:&str) -> Vec<List> {
     let _path = Path::new(&path);
     if _path.exists() {
         let load_list: Vec<List> = serde_json::from_value(utils::file_read_to_json(&path).unwrap_or_default()).unwrap_or_default();
-        let _stamp = (Utc::now() + Duration::hours(9)).timestamp();
+        let _stamp = (Utc::now().with_timezone(&Seoul)).timestamp();
         //172800 48시간 이전 내역 삭제
         load_list.into_iter().map(|mut x|{
             if _stamp - x.timestamp > 28800 {
