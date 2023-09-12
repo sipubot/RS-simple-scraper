@@ -80,8 +80,9 @@ pub async fn get_text_response(_url: &str) -> String {
     reqwest::get(_url).await.unwrap().text().await.unwrap()
 }
 
-pub async fn get_byte_response(_url: &str) -> Bytes {
-    reqwest::get(_url).await.unwrap().bytes().await.unwrap()
+pub async fn get_byte_response(_url: &str, reffer:&str) -> Bytes {
+    let client = reqwest::Client::new();
+    client.get(_url).header("Referer", reffer).send().await.unwrap().bytes().await.unwrap()
 }
 
 pub async fn get_text_response_bot(_url: &str) -> String {

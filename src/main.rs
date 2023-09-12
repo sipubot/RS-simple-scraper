@@ -138,7 +138,7 @@ async fn main() -> std::io::Result<()> {
             }
 
             for _down in down_image_list.iter_mut() {
-                let data = utils::get_byte_response(&_down.link).await;
+                let data = utils::get_byte_response(&_down.link, "https://gall.dcinside.com/").await;
 
                 let path = format!("{}/{}",&_down.path, &_down.subpath);
                 let _ = utils::make_file(&path, &_down.file_name, &data);
