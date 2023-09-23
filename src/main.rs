@@ -50,7 +50,6 @@ pub struct Images {
 const SAVE_PATH: &str = "./save.json";
 const SITE_PATH: &str = "./site.json";
 const DOWN_PATH: &str = "./down.json";
-const SKIP_NICK: &str = "포애";
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -209,7 +208,6 @@ fn parse_dc(html : &str) -> Vec<List> {
     let part = Selector::parse("tr.ub-content").unwrap();
     let title = Selector::parse("td.gall_tit > a").unwrap();
     let date = Selector::parse("td.gall_date").unwrap();
-    let nick = Selector::parse("td.gall_writer ub-writer > span.nickname in").unwrap();
     
     for element in fragment.select(&part) {
         let td1 = element.select(&title).next().unwrap();
@@ -218,14 +216,13 @@ fn parse_dc(html : &str) -> Vec<List> {
         let _link = td1.value().attr("href").unwrap_or_default();
         let _date = element.select(&date).next().unwrap().value().attr("title").unwrap_or_default();
         let _date_text = element.select(&date).next().unwrap().inner_html();
-        let _nick_text = element.select(&nick).next().unwrap().inner_html();
         let _timestamp = chrono::NaiveDateTime::parse_from_str(_date,"%Y-%m-%d %H:%M:%S");
         match _timestamp {
             Ok(v) => {
                 //게시물 시간
                 let _diff = _today.timestamp() - v.timestamp();
                 //println!("{:#?}, {:#?}, {:#?}", v.timestamp(), _diff, _title);
-                if _diff < 172800 && SKIP_NICK.contains(&_nick_text) == false {
+                if _diff < 172800 {
                     //println!("{:#?}, {:#?}, {:#?}", _title, _link, _date_text);
                     _list.push(List{
                         timestamp: _today.timestamp(),
