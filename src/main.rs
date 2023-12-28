@@ -50,7 +50,7 @@ pub struct Images {
 const SAVE_PATH: &str = "./save.json";
 const SITE_PATH: &str = "./site.json";
 const DOWN_PATH: &str = "./down.json";
-const NICK_RULE: &str = "포애";
+const NICK_RULE: &str = "포애,포흐애앵";
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
