@@ -6,8 +6,8 @@ use std::collections::HashSet;
 use scraper::{Html, Selector};
 use chrono::{Utc,};
 use chrono_tz::Asia::Seoul;
+use url::Url;
 mod utils;
-
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct List {
@@ -131,7 +131,7 @@ async fn main() -> std::io::Result<()> {
             for _downlink in dc_down_list.iter_mut() {
                 let path = check_download(&_downlink.title);
                 if path.len() > 0 {
-                    let _url = format!("{}{}","https://gall.dcinside.com",&_downlink.link);
+                    let _url = &_downlink.link;
                     let html = utils::get_text_response(&_url).await;
                     let mut _list: Vec<Images> = parse_dcimage(&html, &path, &_downlink.title);
                     down_image_list.append(&mut _list);
@@ -139,8 +139,10 @@ async fn main() -> std::io::Result<()> {
             }
 
             for _down in down_image_list.iter_mut() {
-                let data = utils::get_byte_response(&_down.link, "https://gall.dcinside.com/").await;
 
+                let ho_url = Url::parse(&_down.link).expect("REASON");
+                let host = ho_url.host_str().unwrap();
+                let data = utils::get_byte_response(&_down.link, host).await;
                 let path = format!("{}/{}",&_down.path, &_down.subpath);
                 let _ = utils::make_file(&path, &_down.file_name, &data);
             }
@@ -206,15 +208,20 @@ fn parse_dc(html : &str) -> Vec<List> {
     let mut _list: Vec<List> = vec![];
     let _today = Utc::now().with_timezone(&Seoul);
     let fragment = Html::parse_fragment(html);
+    let meta_link = Selector::parse(r#"input[id="list_url"]"#).unwrap();
     let part = Selector::parse("tr.ub-content").unwrap();
     let title = Selector::parse("td.gall_tit > a").unwrap();
     let date = Selector::parse("td.gall_date").unwrap();
     let nick = Selector::parse("td.gall_writer").unwrap();
+    let _host = fragment.select(&meta_link).next().unwrap().value().attr("value").unwrap_or_default();
+    let ho_url = Url::parse(_host).expect("REASON");
+    let host = ho_url.host_str().unwrap();
+
     
     for element in fragment.select(&part) {
+
         let td1 = element.select(&title).next().unwrap();
         let _title = td1.inner_html();
-
         let _link = td1.value().attr("href").unwrap_or_default();
         let _date = element.select(&date).next().unwrap().value().attr("title").unwrap_or_default();
         let _date_text = element.select(&date).next().unwrap().inner_html();
@@ -231,7 +238,7 @@ fn parse_dc(html : &str) -> Vec<List> {
                         timestamp: _today.timestamp(),
                         title:_title,
                         datetime:_date_text,
-                        link:_link.to_string(),
+                        link:format!("{}{}",host,_link.to_string()),
                         images:"".to_string(),
                         more:"디시".to_string(),
                         new: true,
