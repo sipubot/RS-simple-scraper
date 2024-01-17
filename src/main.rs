@@ -42,6 +42,7 @@ pub struct Down {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Images {
     pub link: String,
+    pub refferer: String,
     pub file_name: String,
     pub path: String,
     pub subpath: String,
@@ -132,17 +133,16 @@ async fn main() -> std::io::Result<()> {
                 let path = check_download(&_downlink.title);
                 if path.len() > 0 {
                     let _url = &_downlink.link;
+                    let ho_url = Url::parse(&_url).expect("REASON");
+                    let host = format!("{}{}","https://",ho_url.host_str().unwrap());
                     let html = utils::get_text_response(&_url).await;
-                    let mut _list: Vec<Images> = parse_dcimage(&html, &path, &_downlink.title);
+                    let mut _list: Vec<Images> = parse_dcimage(&html, &path, &_downlink.title, &host);
                     down_image_list.append(&mut _list);
                 }
             }
 
             for _down in down_image_list.iter_mut() {
-
-                let ho_url = Url::parse(&_down.link).expect("REASON");
-                let host = ho_url.host_str().unwrap();
-                let data = utils::get_byte_response(&_down.link, host).await;
+                let data = utils::get_byte_response(&_down.link, &_down.refferer).await;
                 let path = format!("{}/{}",&_down.path, &_down.subpath);
                 let _ = utils::make_file(&path, &_down.file_name, &data);
             }
@@ -167,7 +167,7 @@ fn check_download(_title : &str) -> String {
     _path
 }
 
-fn parse_dcimage(html: &str, path: &str, title: &str) -> Vec<Images> {
+fn parse_dcimage(html: &str, path: &str, title: &str, host: &str) -> Vec<Images> {
     let mut nums = 1;
     let mut _list: Vec<Images> = vec![];
     let fragment = Html::parse_fragment(&html);
@@ -194,6 +194,7 @@ fn parse_dcimage(html: &str, path: &str, title: &str) -> Vec<Images> {
             //println!("{:#?}", &url);    
             _list.push(Images{
                 link: url.to_string(),
+                refferer : host.to_string(),
                 file_name:format!("{}{}",nums,".jpg"),
                 path:path.to_string(),
                 subpath:_title.to_string(),

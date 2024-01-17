@@ -78,7 +78,6 @@ pub fn file_save_from_json(_filepath: &str, _v: &Value) -> serde_json::Result<bo
 }
 
 pub async fn get_text_response(_url: &str) -> String {
-    println!("{:#?}", &_url); 
     reqwest::get(_url).await.unwrap().text().await.unwrap()
 }
 
