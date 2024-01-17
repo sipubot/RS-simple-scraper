@@ -238,7 +238,7 @@ fn parse_dc(html : &str) -> Vec<List> {
                         timestamp: _today.timestamp(),
                         title:_title,
                         datetime:_date_text,
-                        link:format!("{}{}",host,_link.to_string()),
+                        link:format!("https://{}{}",host,_link.to_string()),
                         images:"".to_string(),
                         more:"디시".to_string(),
                         new: true,
