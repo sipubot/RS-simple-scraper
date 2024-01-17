@@ -214,7 +214,15 @@ fn parse_dc(html : &str) -> Vec<List> {
     let title = Selector::parse("td.gall_tit > a").unwrap();
     let date = Selector::parse("td.gall_date").unwrap();
     let nick = Selector::parse("td.gall_writer").unwrap();
-    let _host = fragment.select(&meta_link).next().unwrap().value().attr("value").unwrap_or_default();
+    let _meta_value = fragment.select(&meta_link).next();
+    let _host = match _meta_value {
+        Some(v) => v.value().attr("value").unwrap_or_default(),
+        None => ""
+    };
+    //존재하지 않는 페이지
+    if _host.len() < 1 {
+        return _list;
+    }
     let ho_url = Url::parse(_host).expect("REASON");
     let host = ho_url.host_str().unwrap();
 
