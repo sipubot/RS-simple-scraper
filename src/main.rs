@@ -248,7 +248,7 @@ fn parse_dc(html : &str) -> Vec<List> {
                 //게시물 시간
                 let _diff = _today.timestamp() - v.timestamp();
                 //println!("{:#?}, {:#?}, {:#?}", v.timestamp(), _diff, _title);
-                if _diff < 172800 && nick_list.iter().any(|e| _nick_text == e.nick) {
+                if _diff < 172800 && !nick_list.iter().any(|e| _nick_text == e.nick) {
                     //println!("{:#?}, {:#?}, {:#?}", _title, _link, _date_text);
                     _list.push(List{
                         timestamp: _today.timestamp(),
