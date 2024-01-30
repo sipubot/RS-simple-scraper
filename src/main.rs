@@ -48,10 +48,15 @@ pub struct Images {
     pub subpath: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Nick {
+    pub nick: String,
+}
+
 const SAVE_PATH: &str = "./save.json";
 const SITE_PATH: &str = "./site.json";
 const DOWN_PATH: &str = "./down.json";
-const NICK_RULE: &str = "포애,포흐애앵";
+const NICK_RULE: &str = "./nick.json";
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -226,6 +231,8 @@ fn parse_dc(html : &str) -> Vec<List> {
     let ho_url = Url::parse(_host).expect("REASON");
     let host = ho_url.host_str().unwrap();
 
+    let nick_list : Vec<Nick> = serde_json::from_value(utils::file_read_to_json(NICK_RULE).unwrap_or_default()).unwrap_or_default();
+
     
     for element in fragment.select(&part) {
 
@@ -241,7 +248,7 @@ fn parse_dc(html : &str) -> Vec<List> {
                 //게시물 시간
                 let _diff = _today.timestamp() - v.timestamp();
                 //println!("{:#?}, {:#?}, {:#?}", v.timestamp(), _diff, _title);
-                if _diff < 172800 && NICK_RULE.contains(&_nick_text) == false {
+                if _diff < 172800 && nick_list.iter().any(|e| _nick_text == e.nick) {
                     //println!("{:#?}, {:#?}, {:#?}", _title, _link, _date_text);
                     _list.push(List{
                         timestamp: _today.timestamp(),
@@ -251,8 +258,8 @@ fn parse_dc(html : &str) -> Vec<List> {
                         images:"".to_string(),
                         more:"디시".to_string(),
                         new: true,
-                    });
-                }
+                    })
+                } 
             },
             Err(_) =>{
                 //
