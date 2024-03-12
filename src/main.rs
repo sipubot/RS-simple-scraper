@@ -237,17 +237,19 @@ fn parse_dc(html : &str) -> Vec<List> {
     for element in fragment.select(&part) {
 
         let td1 = element.select(&title).next().unwrap();
-        let _title = td1.inner_html();
+        let mut _title = td1.inner_html();
         let _link = td1.value().attr("href").unwrap_or_default();
         let _date = element.select(&date).next().unwrap().value().attr("title").unwrap_or_default();
         let _date_text = element.select(&date).next().unwrap().inner_html();
         let _nick_text = element.select(&nick).next().unwrap().value().attr("data-nick").unwrap_or_default();
         let _timestamp = chrono::NaiveDateTime::parse_from_str(_date,"%Y-%m-%d %H:%M:%S");
+        _title = _title.split("</em>").last().unwrap().to_string().replace("\n", "").replace("\t", "").to_string();
+
         match _timestamp {
             Ok(v) => {
                 //게시물 시간
                 let _diff = _today.timestamp() - v.timestamp();
-                //println!("{:#?}, {:#?}, {:#?}", v.timestamp(), _diff, _title);
+                println!("{:#?}, {:#?}, {:#?}", v.timestamp(), _diff, _title);
                 if _diff < 172800 && !nick_list.iter().any(|e| _nick_text == e.nick) {
                     //println!("{:#?}, {:#?}, {:#?}", _title, _link, _date_text);
                     _list.push(List{
