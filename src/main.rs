@@ -157,8 +157,10 @@ async fn main() -> std::io::Result<()> {
 
             for _down in down_image_list.iter_mut() {
                 let data = utils::get_byte_response(&_down.link, &_down.refferer).await;
-                let path = format!("{}/{}",&_down.path, &_down.subpath);
-                let _ = utils::make_file(&path, &_down.file_name, &data);
+                if data.len() > 0 {
+                    let path = format!("{}/{}",&_down.path, &_down.subpath);
+                    let _ = utils::make_file(&path, &_down.file_name, &data);
+                }
             }
             println!("End Of job");    
             //git_push().await.unwrap_or_default();
