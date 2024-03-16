@@ -78,12 +78,39 @@ pub fn file_save_from_json(_filepath: &str, _v: &Value) -> serde_json::Result<bo
 }
 
 pub async fn get_text_response(_url: &str) -> String {
-    reqwest::get(_url).await.unwrap().text().await.unwrap()
+    let response = reqwest::get(_url).await;
+    match response {
+        Ok(resp) => { 
+            let html = resp.text().await;
+            match html {
+                Ok(result) => {
+                    return result;
+                },
+                Err(_) => { return "".to_string(); }
+            }
+        },
+        Err(_) => { return "".to_string();}
+    }
+    //reqwest::get(_url).await.unwrap().text().await.unwrap()
 }
 
 pub async fn get_byte_response(_url: &str, reffer:&str) -> Bytes {
     let client = reqwest::Client::new();
-    client.get(_url).header("Referer", reffer).send().await.unwrap().bytes().await.unwrap()
+    let empty = "".as_bytes().into();
+    let response = client.get(_url).header("Referer", reffer).send().await;
+    match response {
+        Ok(resp) => { 
+            let bytes = resp.bytes().await;
+            match bytes {
+                Ok(bin) => {
+                    return bin;
+                },
+                Err(_) => { return empty; }
+            }
+        },
+        Err(_) => { return empty;}
+    }
+    //client.get(_url).header("Referer", reffer).send().await.unwrap().bytes().await.unwrap()
 }
 
 pub async fn get_text_response_bot(_url: &str) -> String {
@@ -94,5 +121,18 @@ pub async fn get_text_response_bot(_url: &str) -> String {
     headers.insert(reqwest::header::AUTHORIZATION, reqwest::header::HeaderValue::from_static("secret"));
     let client = reqwest::Client::builder().user_agent(APP_USER_AGENT).default_headers(headers).build().unwrap();
 
-    client.get(&*_url).send().await.unwrap().text().await.unwrap()
+    let response = client.get(_url).send().await;
+    match response {
+        Ok(resp) => { 
+            let html = resp.text().await;
+            match html {
+                Ok(result) => {
+                    return result;
+                },
+                Err(_) => { return "".to_string(); }
+            }
+        },
+        Err(_) => { return "".to_string();}
+    }
+    //client.get(&*_url).send().await.unwrap().text().await.unwrap()
 }

@@ -7,7 +7,6 @@ use scraper::{Html, Selector};
 use chrono::{Utc,};
 use chrono_tz::Asia::Seoul;
 use url::Url;
-use tokio::runtime::Runtime;
 mod utils;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -64,103 +63,108 @@ async fn main() -> std::io::Result<()> {
 
     let mut site_list : Vec<Site> = serde_json::from_value(utils::file_read_to_json(SITE_PATH).unwrap_or_default()).unwrap_or_default();
     let mut save_list : Vec<Save> = serde_json::from_value(utils::file_read_to_json(SAVE_PATH).unwrap_or_default()).unwrap_or_default();
-    
-    let rt = Runtime::new()?;
 
-    rt.block_on(async {
-        let __loop = tokio::task::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300));
-            loop {
-                interval.tick().await;
+    let __loop = tokio::task::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300));
+        loop {
+            interval.tick().await;
+        
+            let mut dc_list: Vec<List>  = vec![];
+            let mut fm_list: Vec<List>  = vec![];
+            let mut mp_list: Vec<List>  = vec![];
             
-                let mut dc_list: Vec<List>  = vec![];
-                let mut fm_list: Vec<List>  = vec![];
-                let mut mp_list: Vec<List>  = vec![];
-                
-                let mut dc_down_list: Vec<List>  = vec![];
-                let mut down_image_list = vec![];
+            let mut dc_down_list: Vec<List>  = vec![];
+            let mut down_image_list = vec![];
 
-                for _site in site_list.iter_mut() {
-                    match _site.host.as_ref() {
-                        "dc" => {
-                            let html = utils::get_text_response(&_site.url).await;
+            for _site in site_list.iter_mut() {
+                match _site.host.as_ref() {
+                    "dc" => {
+                        let html = utils::get_text_response(&_site.url).await;
+                        if html.len() > 0 {
                             let mut _dc_list: Vec<List> = parse_dc(&html);
                             dc_list.append(&mut _dc_list);
-                        },
-                        "fm" => {
-                            let html = utils::get_text_response(&_site.url).await;
+                        }
+                    },
+                    "fm" => {
+                        let html = utils::get_text_response(&_site.url).await;
+                        if html.len() > 0 {
                             let mut _fm_list: Vec<List> = parse_fm(&html);
                             fm_list.append(&mut _fm_list);
-                        },
-                        "mp" => {
-                            let html = utils::get_text_response_bot(&_site.url).await;
+                        }
+                    },
+                    "mp" => {
+                        let html = utils::get_text_response_bot(&_site.url).await;
+                        if html.len() > 0 {
                             let mut _mp_list: Vec<List> = parse_mp(&html);
                             mp_list.append(&mut _mp_list);
-                        },
-                        "mp_low" => {
-                            let html = utils::get_text_response_bot(&_site.url).await;
+                        }
+                    },
+                    "mp_low" => {
+                        let html = utils::get_text_response_bot(&_site.url).await;
+                        if html.len() > 0 {
                             let mut _mp_list: Vec<List> = parse_mp_part_low(&html);
                             mp_list.append(&mut _mp_list);
-                        },
-                        _ => {
-                            println!("not matched");
-                            utils::logger("not matched site");
                         }
+                        
+                    },
+                    _ => {
+                        println!("not matched");
+                        utils::logger("not matched site");
                     }
                 }
+            }
         
-                for _save in save_list.iter_mut() {
-                    match _save.host.as_ref() {
-                        "dc" => {
-                            let mut _loadfile = load_file_to_list(&_save.json_path);
-                            dc_down_list = newer_to_list(dc_list.to_vec(),_loadfile.to_vec());
-                            let save_json = serde_json::to_value(merge_to_list(dc_list.to_vec(),_loadfile)).unwrap();
-                            utils::file_save_from_json(&_save.json_path, &save_json).unwrap();
-                        },
-                        "fm" => {
-                            let mut _loadfile = load_file_to_list(&_save.json_path);
-                            let save_json = serde_json::to_value(merge_to_list(fm_list.to_vec(),_loadfile)).unwrap();
-                            utils::file_save_from_json(&_save.json_path, &save_json).unwrap();
-                                    
-                        },
-                        "mp" => {
-                            let mut _loadfile = load_file_to_list(&_save.json_path);
-                            let save_json = serde_json::to_value(merge_to_list(mp_list.to_vec(),_loadfile)).unwrap();
-                            utils::file_save_from_json(&_save.json_path, &save_json).unwrap();
-                        },
-                        "mp_low" => {
-                            println!("skip");
-                        },
-                        _ => {
-                            println!("not matched");
-                            utils::logger("not matched site");
-                        }
+            for _save in save_list.iter_mut() {
+                match _save.host.as_ref() {
+                    "dc" => {
+                        let mut _loadfile = load_file_to_list(&_save.json_path);
+                        dc_down_list = newer_to_list(dc_list.to_vec(),_loadfile.to_vec());
+                        let save_json = serde_json::to_value(merge_to_list(dc_list.to_vec(),_loadfile)).unwrap();
+                        utils::file_save_from_json(&_save.json_path, &save_json).unwrap();
+                    },
+                    "fm" => {
+                        let mut _loadfile = load_file_to_list(&_save.json_path);
+                        let save_json = serde_json::to_value(merge_to_list(fm_list.to_vec(),_loadfile)).unwrap();
+                        utils::file_save_from_json(&_save.json_path, &save_json).unwrap();
+                                
+                    },
+                    "mp" => {
+                        let mut _loadfile = load_file_to_list(&_save.json_path);
+                        let save_json = serde_json::to_value(merge_to_list(mp_list.to_vec(),_loadfile)).unwrap();
+                        utils::file_save_from_json(&_save.json_path, &save_json).unwrap();
+                    },
+                    "mp_low" => {
+                        println!("skip");
+                    },
+                    _ => {
+                        println!("not matched");
+                        utils::logger("not matched site");
                     }
                 }
+            }
 
-                for _downlink in dc_down_list.iter_mut() {
-                    let path = check_download(&_downlink.title);
-                    if path.len() > 0 {
-                        let _url = &_downlink.link;
-                        let ho_url = Url::parse(&_url).expect("REASON");
-                        let host = format!("{}{}","https://",ho_url.host_str().unwrap());
-                        let html = utils::get_text_response(&_url).await;
-                        let mut _list: Vec<Images> = parse_dcimage(&html, &path, &_downlink.title, &host);
-                        down_image_list.append(&mut _list);
-                    }
+            for _downlink in dc_down_list.iter_mut() {
+                let path = check_download(&_downlink.title);
+                if path.len() > 0 {
+                    let _url = &_downlink.link;
+                    let ho_url = Url::parse(&_url).expect("REASON");
+                    let host = format!("{}{}","https://",ho_url.host_str().unwrap());
+                    let html = utils::get_text_response(&_url).await;
+                    let mut _list: Vec<Images> = parse_dcimage(&html, &path, &_downlink.title, &host);
+                    down_image_list.append(&mut _list);
                 }
+            }
 
-                for _down in down_image_list.iter_mut() {
-                    let data = utils::get_byte_response(&_down.link, &_down.refferer).await;
-                    let path = format!("{}/{}",&_down.path, &_down.subpath);
-                    let _ = utils::make_file(&path, &_down.file_name, &data);
-                }
-                println!("End Of job");    
-                //git_push().await.unwrap_or_default();
-                }
-            });                     
-            __loop.await?
-    })
+            for _down in down_image_list.iter_mut() {
+                let data = utils::get_byte_response(&_down.link, &_down.refferer).await;
+                let path = format!("{}/{}",&_down.path, &_down.subpath);
+                let _ = utils::make_file(&path, &_down.file_name, &data);
+            }
+            println!("End Of job");    
+            //git_push().await.unwrap_or_default();
+        }
+    });
+    __loop.await?
 }
 
 fn check_download(_title : &str) -> String {
