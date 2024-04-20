@@ -221,6 +221,7 @@ fn parse_dcimage(html: &str, path: &str, title: &str, host: &str) -> Vec<Images>
     _list
 }
 
+#[warn(deprecated)]
 fn parse_dc(html : &str) -> Vec<List> {
     let mut _list: Vec<List> = vec![];
     let _today = Utc::now().with_timezone(&Seoul);
