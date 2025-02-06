@@ -4,7 +4,7 @@ extern crate serde_derive;
 use std::path::Path;
 use std::collections::HashSet;
 use scraper::{Html, Selector};
-use chrono::{Utc,};
+use chrono::Utc;
 use chrono_tz::Asia::Seoul;
 use url::Url;
 mod utils;
@@ -260,7 +260,7 @@ fn parse_dc(html : &str) -> Vec<List> {
         match _timestamp {
             Ok(v) => {
                 //게시물 시간
-                let _diff = _today.timestamp() - v.timestamp();
+                let _diff = _today.timestamp() - v.and_utc().timestamp();
                 //println!("{:#?}, {:#?}, {:#?}", v.timestamp(), _diff, _title);
                 if _diff < 172800 && !nick_list.iter().any(|e| _nick_text == e.nick) {
                     //println!("{:#?}, {:#?}, {:#?}", _title, _link, _date_text);
