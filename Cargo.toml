@@ -11,18 +11,18 @@ lto=true
 codegen-units=1
 
 [dependencies]
-tokio = { version = "1.43.0", features = ["full"] }
-time = "0.3.37"
-chrono =  { version = "0.4.39", default-features = false, features = ["clock", "std"] } 
+tokio = { version = "1.44.1", features = ["full"] }
+time = "0.3.40"
+chrono =  { version = "0.4.40", default-features = false, features = ["clock", "std"] } 
 chrono-tz = "0.10.1"
-serde = "1.0.217"
-serde_json = "1.0.138"
-serde_derive = "1.0.217"
+serde = "1.0.219"
+serde_json = "1.0.140"
+serde_derive = "1.0.219"
 derive_more = { version = "2", features = ["full"] }
-reqwest = { version = "0.12.12", features = ["blocking", "socks", "json"] }
-scraper = "0.22.0"
-anyhow = "1.0.95"
-bytes = "1.10.0"
+reqwest = { version = "0.12.14", features = ["blocking", "socks", "json"] }
+scraper = "0.23.1"
+anyhow = "1.0.97"
+bytes = "1.10.1"
 regex = "1.11.1"
 winapi="0.3.9"
 urlencoding = "2.1.3"
