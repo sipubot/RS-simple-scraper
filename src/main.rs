@@ -61,6 +61,7 @@ const NICK_RULE: &str = "./nick.json";
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
 
+    //chromium::browse_wikipedia().unwrap_or_default();
     let mut site_list : Vec<Site> = serde_json::from_value(utils::file_read_to_json(SITE_PATH).unwrap_or_default()).unwrap_or_default();
     let mut save_list : Vec<Save> = serde_json::from_value(utils::file_read_to_json(SAVE_PATH).unwrap_or_default()).unwrap_or_default();
 
