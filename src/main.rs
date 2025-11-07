@@ -56,6 +56,7 @@ pub struct Nick {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FireFoxPath {
     pub path: String,
+    pub geckodriver_path: String,
 }
 
 const SAVE_PATH: &str = "./save.json";
@@ -158,7 +159,7 @@ async fn main() -> std::io::Result<()> {
                     let _url = &_downlink.link;
                     let ho_url = Url::parse(&_url).expect("REASON");
                     let host = format!("{}{}","https://",ho_url.host_str().unwrap());
-                    let html = foxfox::get_html(&_url, fire_fox_path.path.as_str()).await.unwrap_or_default();
+                    let html = foxfox::get_html(&_url, &fire_fox_path).await.unwrap_or_default();
                     //let html = utils::get_text_response(&_url).await;
                     let mut _list: Vec<Images> = parse_dcimage(&html, &path, &_downlink.title, &host);
                     down_image_list.append(&mut _list);
