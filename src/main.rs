@@ -71,8 +71,7 @@ async fn main() -> std::io::Result<()> {
     //foxfox::browse_wikipedia().unwrap_or_default();
     let mut site_list : Vec<Site> = serde_json::from_value(utils::file_read_to_json(SITE_PATH).unwrap_or_default()).unwrap_or_default();
     let mut save_list : Vec<Save> = serde_json::from_value(utils::file_read_to_json(SAVE_PATH).unwrap_or_default()).unwrap_or_default();
-    let fire_fox_path : FireFoxPath = serde_json::from_value(utils::file_read_to_json(FIRE_FOX).unwrap_or_default()).unwrap();
-
+ 
     let __loop = tokio::task::spawn(async move {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300));
         loop {
@@ -159,7 +158,7 @@ async fn main() -> std::io::Result<()> {
                     let _url = &_downlink.link;
                     let ho_url = Url::parse(&_url).expect("REASON");
                     let host = format!("{}{}","https://",ho_url.host_str().unwrap());
-                    let html = foxfox::get_html(&_url, &fire_fox_path).await.unwrap_or_default();
+                    let html = foxfox::get_html(&_url).await.unwrap_or_default();
                     //let html = utils::get_text_response(&_url).await;
                     let mut _list: Vec<Images> = parse_dcimage(&html, &path, &_downlink.title, &host);
                     down_image_list.append(&mut _list);
