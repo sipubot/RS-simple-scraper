@@ -2,10 +2,12 @@ use std::process::{Command, Child};
 use thirtyfour::prelude::*;
 use tokio;
 use std::time::Duration;
+ use std::path::PathBuf;
 
 /// Geckodriver를 Firefox 바이너리 경로와 함께 실행
 fn start_geckodriver_with_binary(firefox_path: &str) -> Result<Child, Box<dyn std::error::Error>> {
-    let child = Command::new("geckodriver")
+    let path = PathBuf::from("E:/____A/geckodriver.exe");
+    let child = Command::new(path)
         .arg("--port")
         .arg("4444")
         .arg("--binary")
