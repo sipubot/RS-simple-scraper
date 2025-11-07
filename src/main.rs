@@ -8,6 +8,7 @@ use chrono::Utc;
 use chrono_tz::Asia::Seoul;
 use url::Url;
 mod utils;
+mod foxfox;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct List {
@@ -52,24 +53,31 @@ pub struct Images {
 pub struct Nick {
     pub nick: String,
 }
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FireFoxPath {
+    pub path: String,
+}
 
 const SAVE_PATH: &str = "./save.json";
 const SITE_PATH: &str = "./site.json";
 const DOWN_PATH: &str = "./down.json";
 const NICK_RULE: &str = "./nick.json";
+const FIRE_FOX: &str = "./firefox.json";
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
 
-    //chromium::browse_wikipedia().unwrap_or_default();
+    //foxfox::browse_wikipedia().unwrap_or_default();
     let mut site_list : Vec<Site> = serde_json::from_value(utils::file_read_to_json(SITE_PATH).unwrap_or_default()).unwrap_or_default();
     let mut save_list : Vec<Save> = serde_json::from_value(utils::file_read_to_json(SAVE_PATH).unwrap_or_default()).unwrap_or_default();
+    let fire_fox_path : FireFoxPath = serde_json::from_value(utils::file_read_to_json(FIRE_FOX).unwrap_or_default()).unwrap();
 
     let __loop = tokio::task::spawn(async move {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300));
         loop {
             interval.tick().await;
         
+            
             let mut dc_list: Vec<List>  = vec![];
             let mut fm_list: Vec<List>  = vec![];
             let mut mp_list: Vec<List>  = vec![];
@@ -150,7 +158,8 @@ async fn main() -> std::io::Result<()> {
                     let _url = &_downlink.link;
                     let ho_url = Url::parse(&_url).expect("REASON");
                     let host = format!("{}{}","https://",ho_url.host_str().unwrap());
-                    let html = utils::get_text_response(&_url).await;
+                    let html = foxfox::get_html(&_url, fire_fox_path.path.as_str()).await.unwrap_or_default();
+                    //let html = utils::get_text_response(&_url).await;
                     let mut _list: Vec<Images> = parse_dcimage(&html, &path, &_downlink.title, &host);
                     down_image_list.append(&mut _list);
                 }
