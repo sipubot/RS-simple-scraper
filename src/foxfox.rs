@@ -1,8 +1,6 @@
-use std::process::{Command, Child};
 use thirtyfour::prelude::*;
 use tokio;
 use std::time::Duration;
-use std::path::PathBuf;
 
 /// Firefox로 페이지 크롤링
 pub async fn get_html(url: &str) -> Result<String, Box<dyn std::error::Error>> {
@@ -11,7 +9,7 @@ pub async fn get_html(url: &str) -> Result<String, Box<dyn std::error::Error>> {
     let driver = WebDriver::new("http://localhost:4444", caps).await?;
 
     // 페이지 이동
-    driver.get(url).await?;
+    driver.goto(url).await?;
 
     // body 태그 로딩 대기
     let body = driver.query(By::Tag("body")).first().await?;
@@ -35,9 +33,6 @@ pub async fn get_html(url: &str) -> Result<String, Box<dyn std::error::Error>> {
     // HTML 추출
     let html = body.inner_html().await?;
     driver.quit().await?;
-
-    // Geckodriver 종료
-    gecko.kill()?;
 
     Ok(html)
 }
