@@ -63,7 +63,6 @@ const SAVE_PATH: &str = "./save.json";
 const SITE_PATH: &str = "./site.json";
 const DOWN_PATH: &str = "./down.json";
 const NICK_RULE: &str = "./nick.json";
-const FIRE_FOX: &str = "./firefox.json";
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
