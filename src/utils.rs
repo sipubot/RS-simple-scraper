@@ -5,7 +5,33 @@ use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::Path;
+use std::time::Duration;
 use bytes::Bytes;
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref HTTP_CLIENT: reqwest::Client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .pool_max_idle_per_host(10)
+        .user_agent("RS Simple Scraper/1.0")
+        .build()
+        .expect("Failed to create HTTP client");
+
+    static ref HTTP_CLIENT_BOT: reqwest::Client = {
+        static APP_USER_AGENT: &str = concat!(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:98.0) Gecko/20100101 Firefox/98.0"
+        );
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert(reqwest::header::AUTHORIZATION, reqwest::header::HeaderValue::from_static("secret"));
+        reqwest::Client::builder()
+            .user_agent(APP_USER_AGENT)
+            .default_headers(headers)
+            .timeout(Duration::from_secs(30))
+            .pool_max_idle_per_host(10)
+            .build()
+            .expect("Failed to create bot HTTP client")
+    };
+}
 
 
 pub fn logger(_log: &str) {
@@ -78,61 +104,62 @@ pub fn file_save_from_json(_filepath: &str, _v: &Value) -> serde_json::Result<bo
 }
 
 pub async fn get_text_response(_url: &str) -> String {
-    let response = reqwest::get(_url).await;
+    let response = HTTP_CLIENT.get(_url).send().await;
     match response {
-        Ok(resp) => { 
+        Ok(resp) => {
             let html = resp.text().await;
             match html {
-                Ok(result) => {
-                    return result;
-                },
-                Err(_) => { return "".to_string(); }
+                Ok(result) => result,
+                Err(e) => {
+                    logger(&format!("Failed to get text from {}: {}", _url, e));
+                    String::new()
+                }
             }
         },
-        Err(_) => { return "".to_string();}
+        Err(e) => {
+            logger(&format!("Failed to request {}: {}", _url, e));
+            String::new()
+        }
     }
-    //reqwest::get(_url).await.unwrap().text().await.unwrap()
 }
 
-pub async fn get_byte_response(_url: &str, reffer:&str) -> Bytes {
-    let client = reqwest::Client::new();
-    let empty = "".as_bytes().into();
-    let response = client.get(_url).header("Referer", reffer).send().await;
+pub async fn get_byte_response(_url: &str, reffer: &str) -> Bytes {
+    let empty = Bytes::new();
+    let response = HTTP_CLIENT.get(_url).header("Referer", reffer).send().await;
     match response {
-        Ok(resp) => { 
+        Ok(resp) => {
             let bytes = resp.bytes().await;
             match bytes {
-                Ok(bin) => {
-                    return bin;
-                },
-                Err(_) => { return empty; }
+                Ok(bin) => bin,
+                Err(e) => {
+                    logger(&format!("Failed to get bytes from {}: {}", _url, e));
+                    empty
+                }
             }
         },
-        Err(_) => { return empty;}
+        Err(e) => {
+            logger(&format!("Failed to request bytes from {}: {}", _url, e));
+            empty
+        }
     }
-    //client.get(_url).header("Referer", reffer).send().await.unwrap().bytes().await.unwrap()
 }
 
 pub async fn get_text_response_bot(_url: &str) -> String {
-    static APP_USER_AGENT: &str = concat!(
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:98.0) Gecko/20100101 Firefox/98.0"
-    );
-    let mut headers = reqwest::header::HeaderMap::new();
-    headers.insert(reqwest::header::AUTHORIZATION, reqwest::header::HeaderValue::from_static("secret"));
-    let client = reqwest::Client::builder().user_agent(APP_USER_AGENT).default_headers(headers).build().unwrap();
-
-    let response = client.get(_url).send().await;
+    let response = HTTP_CLIENT_BOT.get(_url).send().await;
     match response {
-        Ok(resp) => { 
+        Ok(resp) => {
             let html = resp.text().await;
             match html {
-                Ok(result) => {
-                    return result;
-                },
-                Err(_) => { return "".to_string(); }
+                Ok(result) => result,
+                Err(e) => {
+                    logger(&format!("Failed to get bot text from {}: {}", _url, e));
+                    String::new()
+                }
             }
         },
-        Err(_) => { return "".to_string();}
+        Err(e) => {
+            logger(&format!("Failed to request bot text from {}: {}", _url, e));
+            String::new()
+        }
     }
-    //client.get(&*_url).send().await.unwrap().text().await.unwrap()
 }

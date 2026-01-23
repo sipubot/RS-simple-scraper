@@ -1,5 +1,4 @@
-#[macro_use]
-extern crate serde_derive;
+
 
 use std::path::Path;
 use std::collections::HashSet;
@@ -7,6 +6,8 @@ use scraper::{Html, Selector};
 use chrono::Utc;
 use chrono_tz::Asia::Seoul;
 use url::Url;
+use futures::future::join_all;
+use serde::{Serialize, Deserialize};
 mod utils;
 mod foxfox;
 
@@ -64,60 +65,94 @@ const SITE_PATH: &str = "./site.json";
 const DOWN_PATH: &str = "./down.json";
 const NICK_RULE: &str = "./nick.json";
 
+async fn scrape_site(site: &Site) -> Vec<List> {
+    match site.host.as_str() {
+        "dc" => {
+            let html = utils::get_text_response(&site.url).await;
+            if !html.is_empty() {
+                parse_dc(&html)
+            } else {
+                vec![]
+            }
+        },
+        "fm" => {
+            let html = utils::get_text_response(&site.url).await;
+            if !html.is_empty() {
+                parse_fm(&html)
+            } else {
+                vec![]
+            }
+        },
+        "mp" => {
+            let html = utils::get_text_response_bot(&site.url).await;
+            if !html.is_empty() {
+                parse_mp(&html)
+            } else {
+                vec![]
+            }
+        },
+        "mp_low" => {
+            let html = utils::get_text_response_bot(&site.url).await;
+            if !html.is_empty() {
+                parse_mp_part_low(&html)
+            } else {
+                vec![]
+            }
+        },
+        _ => {
+            println!("not matched site: {}", site.host);
+            utils::logger(&format!("not matched site: {}", site.host));
+            vec![]
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
 
     //foxfox::browse_wikipedia().unwrap_or_default();
-    let mut site_list : Vec<Site> = serde_json::from_value(utils::file_read_to_json(SITE_PATH).unwrap_or_default()).unwrap_or_default();
-    let mut save_list : Vec<Save> = serde_json::from_value(utils::file_read_to_json(SAVE_PATH).unwrap_or_default()).unwrap_or_default();
  
     let __loop = tokio::task::spawn(async move {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300));
         loop {
             interval.tick().await;
-        
-            
+
+            // Reload configuration on each iteration to allow hot-reloading
+            let site_list : Vec<Site> = serde_json::from_value(utils::file_read_to_json(SITE_PATH).unwrap_or_default()).unwrap_or_default();
+            let mut save_list : Vec<Save> = serde_json::from_value(utils::file_read_to_json(SAVE_PATH).unwrap_or_default()).unwrap_or_default();
+
             let mut dc_list: Vec<List>  = vec![];
             let mut fm_list: Vec<List>  = vec![];
             let mut mp_list: Vec<List>  = vec![];
-            
+
             let mut dc_down_list: Vec<List>  = vec![];
             let mut down_image_list = vec![];
 
-            for _site in site_list.iter_mut() {
-                match _site.host.as_ref() {
-                    "dc" => {
-                        let html = utils::get_text_response(&_site.url).await;
-                        if html.len() > 0 {
-                            let mut _dc_list: Vec<List> = parse_dc(&html);
-                            dc_list.append(&mut _dc_list);
-                        }
-                    },
-                    "fm" => {
-                        let html = utils::get_text_response(&_site.url).await;
-                        if html.len() > 0 {
-                            let mut _fm_list: Vec<List> = parse_fm(&html);
-                            fm_list.append(&mut _fm_list);
-                        }
-                    },
-                    "mp" => {
-                        let html = utils::get_text_response_bot(&_site.url).await;
-                        if html.len() > 0 {
-                            let mut _mp_list: Vec<List> = parse_mp(&html);
-                            mp_list.append(&mut _mp_list);
-                        }
-                    },
-                    "mp_low" => {
-                        let html = utils::get_text_response_bot(&_site.url).await;
-                        if html.len() > 0 {
-                            let mut _mp_list: Vec<List> = parse_mp_part_low(&html);
-                            mp_list.append(&mut _mp_list);
-                        }
-                        
-                    },
-                    _ => {
-                        println!("not matched");
-                        utils::logger("not matched site");
+            // Concurrent site scraping with staggered requests for safety
+            let scrape_tasks: Vec<_> = site_list.into_iter().enumerate().map(|(i, site)| {
+                tokio::spawn(async move {
+                    // Add staggered delay to avoid overwhelming servers (0-2 seconds)
+                    if i > 0 {
+                        let delay = std::time::Duration::from_millis((i * 500) as u64);
+                        tokio::time::sleep(delay).await;
+                    }
+                    scrape_site(&site).await
+                })
+            }).collect();
+
+            let scrape_results: Vec<Vec<List>> = join_all(scrape_tasks).await
+                .into_iter()
+                .map(|r| r.unwrap_or_default())
+                .collect();
+
+            // Distribute results by site type
+            for posts in scrape_results {
+                for post in posts {
+                    match post.more.as_str() {
+                        "디시" => dc_list.push(post),
+                        "펨코" => fm_list.push(post),
+                        "엠팍" => mp_list.push(post),
+                        _ => {} // Ignore unknown types
                     }
                 }
             }
@@ -126,19 +161,19 @@ async fn main() -> std::io::Result<()> {
                 match _save.host.as_ref() {
                     "dc" => {
                         let mut _loadfile = load_file_to_list(&_save.json_path);
-                        dc_down_list = newer_to_list(dc_list.to_vec(),_loadfile.to_vec());
-                        let save_json = serde_json::to_value(merge_to_list(dc_list.to_vec(),_loadfile)).unwrap();
+                        dc_down_list = newer_to_list(&dc_list, &_loadfile);
+                        let save_json = serde_json::to_value(merge_to_list(&dc_list, &_loadfile)).unwrap();
                         utils::file_save_from_json(&_save.json_path, &save_json).unwrap();
                     },
                     "fm" => {
                         let mut _loadfile = load_file_to_list(&_save.json_path);
-                        let save_json = serde_json::to_value(merge_to_list(fm_list.to_vec(),_loadfile)).unwrap();
+                        let save_json = serde_json::to_value(merge_to_list(&fm_list, &_loadfile)).unwrap();
                         utils::file_save_from_json(&_save.json_path, &save_json).unwrap();
                                 
                     },
                     "mp" => {
                         let mut _loadfile = load_file_to_list(&_save.json_path);
-                        let save_json = serde_json::to_value(merge_to_list(mp_list.to_vec(),_loadfile)).unwrap();
+                        let save_json = serde_json::to_value(merge_to_list(&mp_list, &_loadfile)).unwrap();
                         utils::file_save_from_json(&_save.json_path, &save_json).unwrap();
                     },
                     "mp_low" => {
@@ -264,7 +299,13 @@ fn parse_dc(html : &str) -> Vec<List> {
         let _date_text = element.select(&date).next().unwrap().inner_html();
         let _nick_text = element.select(&nick).next().unwrap().value().attr("data-nick").unwrap_or_default();
         let _timestamp = chrono::NaiveDateTime::parse_from_str(_date,"%Y-%m-%d %H:%M:%S");
-        _title = _title.split("</em>").last().unwrap().to_string().replace("\n", "").replace("\t", "").to_string();
+        // Optimize string processing to reduce allocations
+        _title = _title.split("</em>")
+            .last()
+            .unwrap_or("")
+            .chars()
+            .filter(|&c| c != '\n' && c != '\t')
+            .collect::<String>();
 
         match _timestamp {
             Ok(v) => {
@@ -400,39 +441,37 @@ fn load_file_to_list(path:&str) -> Vec<List> {
     }
 }
 
-fn newer_to_list(a:Vec<List>, b:Vec<List>) -> Vec<List> {
-    let mut _a:Vec<List> = vec![];
-    for x in &a {
-        _a.push(x.to_owned());
-    }
-    let mut hash_key = HashSet::new();
-    for x in &b {
-        hash_key.insert(x.link.to_owned());
-    }
-    _a = _a.into_iter().filter(|x| hash_key.contains(&x.link) == false).collect::<Vec<List>>();
+fn newer_to_list(a: &[List], b: &[List]) -> Vec<List> {
+    let existing_links: HashSet<&str> = b.iter()
+        .map(|item| item.link.as_str())
+        .collect();
 
-    _a
+    a.iter()
+        .filter(|item| !existing_links.contains(item.link.as_str()))
+        .cloned()
+        .collect()
 }
 
-fn merge_to_list(a:Vec<List>, mut b:Vec<List>) -> Vec<List> {
-    let mut h_a = HashSet::new();
-    let mut _a:Vec<List> = vec![];
-    for x in &a {
-        if !h_a.contains(&x.link.to_owned()) {
-            _a.push(x.to_owned());
-            h_a.insert(x.link.to_owned());
-        } 
-    }
-    let mut hash_key = HashSet::new();
-    for x in &b {
-        hash_key.insert(x.link.to_owned());
-    }
-    _a = _a.into_iter().filter(|x| hash_key.contains(&x.link) == false).collect::<Vec<List>>();
-    let mut re = vec![];
+fn merge_to_list(a: &[List], b: &[List]) -> Vec<List> {
+    let mut result = Vec::new();
+    let mut seen_links = HashSet::new();
 
-    re.append(&mut _a);
-    re.append(&mut b);
-    re.sort_by(|x,y| y.timestamp.cmp(&x.timestamp));
-    re
+    // Add items from 'a' first, filtering duplicates
+    for item in a {
+        if seen_links.insert(item.link.as_str()) {
+            result.push(item.clone());
+        }
+    }
+
+    // Add items from 'b' that aren't already in result
+    for item in b {
+        if seen_links.insert(item.link.as_str()) {
+            result.push(item.clone());
+        }
+    }
+
+    // Sort by timestamp descending
+    result.sort_by(|x, y| y.timestamp.cmp(&x.timestamp));
+    result
 }
 
