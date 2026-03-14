@@ -14,10 +14,17 @@ mod scrapers;
 use models::{List, Site, Save, Down, Images, Nick};
 use scrapers::{dc, fm, mp};
 
+// Configuration file paths
 const SAVE_PATH: &str = "./save.json";
 const SITE_PATH: &str = "./site.json";
 const DOWN_PATH: &str = "./down.json";
 const NICK_RULE: &str = "./nick.json";
+
+// Timing constants (in seconds)
+const SCRAPE_INTERVAL_SECS: u64 = 300;      // 5 minutes between scraping cycles
+const REQUEST_DELAY_MS: u64 = 500;          // Delay between concurrent requests
+const NEW_MARKER_AGE_SECS: i64 = 28800;     // 8 hours - posts newer than this keep "new" flag
+const MAX_POST_AGE_SECS: i64 = 172800;      // 48 hours - posts older than this are filtered out
 
 async fn scrape_site(site: Site) -> Vec<List> {
     match site.host.as_str() {
@@ -85,7 +92,7 @@ async fn run_scraping_cycle() -> Result<()> {
     let scrape_tasks: Vec<_> = site_list.into_iter().enumerate().map(|(i, site)| {
         tokio::spawn(async move {
             if i > 0 {
-                let delay = std::time::Duration::from_millis((i * 500) as u64);
+                let delay = std::time::Duration::from_millis((i as u64) * REQUEST_DELAY_MS);
                 tokio::time::sleep(delay).await;
             }
             scrape_site(site).await
@@ -158,7 +165,7 @@ async fn run_scraping_cycle() -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300));
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(SCRAPE_INTERVAL_SECS));
     loop {
         interval.tick().await;
         if let Err(e) = run_scraping_cycle().await {
@@ -188,12 +195,12 @@ async fn load_file_to_list(path: &str) -> Vec<List> {
         
         load_list.into_iter()
             .map(|mut x| {
-                if _stamp - x.timestamp > 28800 {
+                if _stamp - x.timestamp > NEW_MARKER_AGE_SECS {
                     x.new = false;
                 }
                 x
             })
-            .filter(|x| (_stamp - x.timestamp) < 172800)
+            .filter(|x| (_stamp - x.timestamp) < MAX_POST_AGE_SECS)
             .collect()
     } else {
         vec![]

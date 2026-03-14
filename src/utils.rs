@@ -8,23 +8,28 @@ use tokio::fs::{self, File, OpenOptions};
 use tokio::io::AsyncWriteExt;
 use anyhow::{Result, Context};
 
+// HTTP client configuration constants
+const HTTP_TIMEOUT_SECS: u64 = 30;
+const POOL_MAX_IDLE_PER_HOST: usize = 10;
+const APP_USER_AGENT: &str = "RS Simple Scraper/1.0";
+const BOT_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:98.0) Gecko/20100101 Firefox/98.0";
+
 lazy_static! {
     static ref HTTP_CLIENT: reqwest::Client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(30))
-        .pool_max_idle_per_host(10)
-        .user_agent("RS Simple Scraper/1.0")
+        .timeout(Duration::from_secs(HTTP_TIMEOUT_SECS))
+        .pool_max_idle_per_host(POOL_MAX_IDLE_PER_HOST)
+        .user_agent(APP_USER_AGENT)
         .build()
         .expect("Failed to create HTTP client");
 
     static ref HTTP_CLIENT_BOT: reqwest::Client = {
-        static APP_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:98.0) Gecko/20100101 Firefox/98.0";
         let mut headers = reqwest::header::HeaderMap::new();
         headers.insert(reqwest::header::AUTHORIZATION, reqwest::header::HeaderValue::from_static("secret"));
         reqwest::Client::builder()
-            .user_agent(APP_USER_AGENT)
+            .user_agent(BOT_USER_AGENT)
             .default_headers(headers)
-            .timeout(Duration::from_secs(30))
-            .pool_max_idle_per_host(10)
+            .timeout(Duration::from_secs(HTTP_TIMEOUT_SECS))
+            .pool_max_idle_per_host(POOL_MAX_IDLE_PER_HOST)
             .build()
             .expect("Failed to create bot HTTP client")
     };
