@@ -11,21 +11,17 @@ mod foxfox;
 mod models;
 mod scrapers;
 
-use models::{List, Site, Save, Down, Images, Nick, Config};
+use models::{List, Site, Down, Images, Nick, Config};
 use scrapers::{dc, fm, mp};
 
-// Configuration file paths
+// Configuration file path
 const CONFIG_PATH: &str = "./config.json";
-const SAVE_PATH: &str = "./save.json";      // legacy fallback
-const SITE_PATH: &str = "./site.json";      // legacy fallback
-const DOWN_PATH: &str = "./down.json";      // legacy fallback
-const NICK_RULE: &str = "./nick.json";      // legacy fallback
 
 // Timing constants (in seconds)
 const SCRAPE_INTERVAL_SECS: u64 = 300;      // 5 minutes between scraping cycles
 const REQUEST_DELAY_MS: u64 = 500;          // Delay between concurrent requests
 const NEW_MARKER_AGE_SECS: i64 = 28800;     // 8 hours - posts newer than this keep "new" flag
-const MAX_POST_AGE_SECS: i64 = 172800;      // 48 hours - posts older than this are filtered out
+const MAX_POST_AGE_SECS: i64 = 259200;      // 72 hours - posts older than this are filtered out
 
 async fn scrape_site(site: Site, nick_list: &[Nick]) -> Vec<List> {
     match site.host.as_str() {
@@ -79,33 +75,10 @@ async fn run_scraping_cycle() -> Result<()> {
     let config_json = utils::file_read_to_json(CONFIG_PATH).await.unwrap_or_default();
     let config: Config = serde_json::from_value(config_json).unwrap_or_default();
 
-    let site_list = if !config.sites.is_empty() {
-        config.sites
-    } else {
-        let site_json = utils::file_read_to_json(SITE_PATH).await.unwrap_or_default();
-        serde_json::from_value(site_json).unwrap_or_default()
-    };
-
-    let mut save_list = if !config.saves.is_empty() {
-        config.saves
-    } else {
-        let save_json = utils::file_read_to_json(SAVE_PATH).await.unwrap_or_default();
-        serde_json::from_value(save_json).unwrap_or_default()
-    };
-
-    let down_list = if !config.downs.is_empty() {
-        config.downs
-    } else {
-        let down_json = utils::file_read_to_json(DOWN_PATH).await.unwrap_or_default();
-        serde_json::from_value(down_json).unwrap_or_default()
-    };
-
-    let nick_list = if !config.nicks.is_empty() {
-        config.nicks
-    } else {
-        let nick_json = utils::file_read_to_json(NICK_RULE).await.unwrap_or_default();
-        serde_json::from_value(nick_json).unwrap_or_default()
-    };
+    let site_list = config.sites;
+    let mut save_list = config.saves;
+    let down_list = config.downs;
+    let nick_list = config.nicks;
 
     let mut dc_list: Vec<List> = vec![];
     let mut fm_list: Vec<List> = vec![];
