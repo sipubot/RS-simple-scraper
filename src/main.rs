@@ -141,30 +141,34 @@ async fn run_scraping_cycle() -> Result<()> {
         }
     }
 
-    for _downlink in dc_down_list.iter_mut() {
-        if let Some(down_cfg) = find_download_target(&_downlink.title, &down_list) {
-            let path = &down_cfg.path;
-            let ho_url = Url::parse(&_downlink.link).context("Failed to parse downlink URL")?;
-            let host = format!("{}://{}", ho_url.scheme(), ho_url.host_str().unwrap_or_default());
+    if config.enable_download {
+        for _downlink in dc_down_list.iter_mut() {
+            if let Some(down_cfg) = find_download_target(&_downlink.title, &down_list) {
+                let path = &down_cfg.path;
+                let ho_url = Url::parse(&_downlink.link).context("Failed to parse downlink URL")?;
+                let host = format!("{}://{}", ho_url.scheme(), ho_url.host_str().unwrap_or_default());
 
-            let html = if down_cfg.use_webdriver {
-                foxfox::get_html(&_downlink.link).await.unwrap_or_default()
-            } else {
-                utils::get_text_response(&_downlink.link).await
-            };
+                let html = if down_cfg.use_webdriver {
+                    foxfox::get_html(&_downlink.link).await.unwrap_or_default()
+                } else {
+                    utils::get_text_response(&_downlink.link).await
+                };
 
-            if !html.is_empty() {
-                let mut _list: Vec<Images> = dc::parse_dcimage(&html, path, &_downlink.title, &host)?;
-                down_image_list.append(&mut _list);
+                if !html.is_empty() {
+                    let mut _list: Vec<Images> = dc::parse_dcimage(&html, path, &_downlink.title, &host)?;
+                    down_image_list.append(&mut _list);
+                }
             }
         }
     }
 
-    for _down in down_image_list.iter_mut() {
-        let data = utils::get_byte_response(&_down.link, &_down.refferer).await;
-        if !data.is_empty() {
-            let path = format!("{}/{}", &_down.path, &_down.subpath);
-            let _ = utils::make_file(&path, &_down.file_name, &data).await;
+    if config.enable_download {
+        for _down in down_image_list.iter_mut() {
+            let data = utils::get_byte_response(&_down.link, &_down.refferer).await;
+            if !data.is_empty() {
+                let path = format!("{}/{}", &_down.path, &_down.subpath);
+                let _ = utils::make_file(&path, &_down.file_name, &data).await;
+            }
         }
     }
 

@@ -56,4 +56,6 @@ pub struct Config {
     pub downs: Vec<Down>,
     #[serde(default)]
     pub nicks: Vec<Nick>,
+    #[serde(default)]
+    pub enable_download: bool,
 }
