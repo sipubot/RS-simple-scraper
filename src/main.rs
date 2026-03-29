@@ -11,14 +11,15 @@ mod foxfox;
 mod models;
 mod scrapers;
 
-use models::{List, Site, Save, Down, Images, Nick};
+use models::{List, Site, Save, Down, Images, Nick, Config};
 use scrapers::{dc, fm, mp};
 
 // Configuration file paths
-const SAVE_PATH: &str = "./save.json";
-const SITE_PATH: &str = "./site.json";
-const DOWN_PATH: &str = "./down.json";
-const NICK_RULE: &str = "./nick.json";
+const CONFIG_PATH: &str = "./config.json";
+const SAVE_PATH: &str = "./save.json";      // legacy fallback
+const SITE_PATH: &str = "./site.json";      // legacy fallback
+const DOWN_PATH: &str = "./down.json";      // legacy fallback
+const NICK_RULE: &str = "./nick.json";      // legacy fallback
 
 // Timing constants (in seconds)
 const SCRAPE_INTERVAL_SECS: u64 = 300;      // 5 minutes between scraping cycles
@@ -26,15 +27,14 @@ const REQUEST_DELAY_MS: u64 = 500;          // Delay between concurrent requests
 const NEW_MARKER_AGE_SECS: i64 = 28800;     // 8 hours - posts newer than this keep "new" flag
 const MAX_POST_AGE_SECS: i64 = 172800;      // 48 hours - posts older than this are filtered out
 
-async fn scrape_site(site: Site) -> Vec<List> {
+async fn scrape_site(site: Site, nick_list: &[Nick]) -> Vec<List> {
     match site.host.as_str() {
         "dc" => {
+            // 파일 다운로드가 아닌 일반 스크랩 시에는 WebDriver를 사용하지 않습니다.
             let html = utils::get_text_response(&site.url).await;
+
             if !html.is_empty() {
-                let nick_json = utils::file_read_to_json(NICK_RULE).await.unwrap_or_default();
-                let nick_list: Vec<Nick> = serde_json::from_value(nick_json).unwrap_or_default();
-                
-                let (results, logs) = dc::parse_dc(&html, &site.url, &nick_list);
+                let (results, logs) = dc::parse_dc(&html, &site.url, nick_list);
                 for log_link in logs {
                     utils::logger(&log_link).await;
                 }
@@ -76,11 +76,36 @@ async fn scrape_site(site: Site) -> Vec<List> {
 }
 
 async fn run_scraping_cycle() -> Result<()> {
-    let site_json = utils::file_read_to_json(SITE_PATH).await.unwrap_or_default();
-    let site_list: Vec<Site> = serde_json::from_value(site_json).unwrap_or_default();
-    
-    let save_json = utils::file_read_to_json(SAVE_PATH).await.unwrap_or_default();
-    let mut save_list: Vec<Save> = serde_json::from_value(save_json).unwrap_or_default();
+    let config_json = utils::file_read_to_json(CONFIG_PATH).await.unwrap_or_default();
+    let config: Config = serde_json::from_value(config_json).unwrap_or_default();
+
+    let site_list = if !config.sites.is_empty() {
+        config.sites
+    } else {
+        let site_json = utils::file_read_to_json(SITE_PATH).await.unwrap_or_default();
+        serde_json::from_value(site_json).unwrap_or_default()
+    };
+
+    let mut save_list = if !config.saves.is_empty() {
+        config.saves
+    } else {
+        let save_json = utils::file_read_to_json(SAVE_PATH).await.unwrap_or_default();
+        serde_json::from_value(save_json).unwrap_or_default()
+    };
+
+    let down_list = if !config.downs.is_empty() {
+        config.downs
+    } else {
+        let down_json = utils::file_read_to_json(DOWN_PATH).await.unwrap_or_default();
+        serde_json::from_value(down_json).unwrap_or_default()
+    };
+
+    let nick_list = if !config.nicks.is_empty() {
+        config.nicks
+    } else {
+        let nick_json = utils::file_read_to_json(NICK_RULE).await.unwrap_or_default();
+        serde_json::from_value(nick_json).unwrap_or_default()
+    };
 
     let mut dc_list: Vec<List> = vec![];
     let mut fm_list: Vec<List> = vec![];
@@ -89,13 +114,16 @@ async fn run_scraping_cycle() -> Result<()> {
     let mut dc_down_list: Vec<List> = vec![];
     let mut down_image_list = vec![];
 
+    let nick_list = std::sync::Arc::new(nick_list);
+
     let scrape_tasks: Vec<_> = site_list.into_iter().enumerate().map(|(i, site)| {
+        let nick_list = std::sync::Arc::clone(&nick_list);
         tokio::spawn(async move {
             if i > 0 {
                 let delay = std::time::Duration::from_millis((i as u64) * REQUEST_DELAY_MS);
                 tokio::time::sleep(delay).await;
             }
-            scrape_site(site).await
+            scrape_site(site, &nick_list).await
         })
     }).collect();
 
@@ -141,13 +169,21 @@ async fn run_scraping_cycle() -> Result<()> {
     }
 
     for _downlink in dc_down_list.iter_mut() {
-        let path = check_download(&_downlink.title).await;
-        if !path.is_empty() {
+        if let Some(down_cfg) = find_download_target(&_downlink.title, &down_list) {
+            let path = &down_cfg.path;
             let ho_url = Url::parse(&_downlink.link).context("Failed to parse downlink URL")?;
             let host = format!("{}://{}", ho_url.scheme(), ho_url.host_str().unwrap_or_default());
-            let html = foxfox::get_html(&_downlink.link).await.unwrap_or_default();
-            let mut _list: Vec<Images> = dc::parse_dcimage(&html, &path, &_downlink.title, &host)?;
-            down_image_list.append(&mut _list);
+
+            let html = if down_cfg.use_webdriver {
+                foxfox::get_html(&_downlink.link).await.unwrap_or_default()
+            } else {
+                utils::get_text_response(&_downlink.link).await
+            };
+
+            if !html.is_empty() {
+                let mut _list: Vec<Images> = dc::parse_dcimage(&html, path, &_downlink.title, &host)?;
+                down_image_list.append(&mut _list);
+            }
         }
     }
 
@@ -175,16 +211,13 @@ async fn main() -> Result<()> {
     }
 }
 
-async fn check_download(_title: &str) -> String {
-    let down_json = utils::file_read_to_json(DOWN_PATH).await.unwrap_or_default();
-    let down_list: Vec<Down> = serde_json::from_value(down_json).unwrap_or_default();
-    
+fn find_download_target<'a>(_title: &str, down_list: &'a [Down]) -> Option<&'a Down> {
     for _downtarget in down_list {
         if _title.contains(&_downtarget.title) {
-            return _downtarget.path;
+            return Some(_downtarget);
         }
     }
-    String::new()
+    None
 }
 
 async fn load_file_to_list(path: &str) -> Vec<List> {

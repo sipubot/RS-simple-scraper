@@ -28,6 +28,8 @@ pub struct Down {
     pub host: String,
     pub title: String,
     pub path: String,
+    #[serde(default)]
+    pub use_webdriver: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -42,4 +44,16 @@ pub struct Images {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Nick {
     pub nick: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct Config {
+    #[serde(default)]
+    pub sites: Vec<Site>,
+    #[serde(default)]
+    pub saves: Vec<Save>,
+    #[serde(default)]
+    pub downs: Vec<Down>,
+    #[serde(default)]
+    pub nicks: Vec<Nick>,
 }
