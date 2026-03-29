@@ -1,10 +1,12 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::collections::HashSet;
 use chrono::Utc;
 use chrono_tz::Asia::Seoul;
 use url::Url;
 use futures::future::join_all;
 use anyhow::{Result, Context};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 mod utils;
 mod foxfox;
@@ -27,40 +29,39 @@ async fn scrape_site(site: Site, nick_list: &[Nick]) -> Vec<List> {
     match site.host.as_str() {
         "dc" => {
             // 파일 다운로드가 아닌 일반 스크랩 시에는 WebDriver를 사용하지 않습니다.
-            let html = utils::get_text_response(&site.url).await;
-
-            if !html.is_empty() {
-                let (results, logs) = dc::parse_dc(&html, &site.url, nick_list);
-                for log_link in logs {
-                    utils::logger(&log_link).await;
+            match utils::get_text_response(&site.url).await {
+                Ok(html) if !html.is_empty() => {
+                    let (results, logs) = dc::parse_dc(&html, &site.url, nick_list);
+                    for log_link in logs {
+                        utils::logger(&log_link).await;
+                    }
+                    results.unwrap_or_default()
                 }
-                results.unwrap_or_default()
-            } else {
-                vec![]
+                _ => vec![]
             }
         },
         "fm" => {
-            let html = utils::get_text_response(&site.url).await;
-            if !html.is_empty() {
-                fm::parse_fm(&html).unwrap_or_default()
-            } else {
-                vec![]
+            match utils::get_text_response(&site.url).await {
+                Ok(html) if !html.is_empty() => {
+                    fm::parse_fm(&html).unwrap_or_default()
+                }
+                _ => vec![]
             }
         },
         "mp" => {
-            let html = utils::get_text_response_bot(&site.url).await;
-            if !html.is_empty() {
-                mp::parse_mp(&html).unwrap_or_default()
-            } else {
-                vec![]
+            match utils::get_text_response_bot(&site.url).await {
+                Ok(html) if !html.is_empty() => {
+                    mp::parse_mp(&html).unwrap_or_default()
+                }
+                _ => vec![]
             }
         },
         "mp_low" => {
-            let html = utils::get_text_response_bot(&site.url).await;
-            if !html.is_empty() {
-                mp::parse_mp_part_low(&html).unwrap_or_default()
-            } else {
-                vec![]
+            match utils::get_text_response_bot(&site.url).await {
+                Ok(html) if !html.is_empty() => {
+                    mp::parse_mp_part_low(&html).unwrap_or_default()
+                }
+                _ => vec![]
             }
         },
         _ => {
@@ -72,8 +73,6 @@ async fn scrape_site(site: Site, nick_list: &[Nick]) -> Vec<List> {
 }
 
 async fn run_scraping_cycle() -> Result<()> {
-    let config_json = utils::file_read_to_json(CONFIG_PATH).await.unwrap_or_default();
-    let config: Config = serde_json::from_value(config_json).unwrap_or_default();
     let config_json = utils::file_read_to_json(CONFIG_PATH).await?;
     let config: Config = serde_json::from_value(config_json).context("Failed to parse config.json structure")?;
 
@@ -155,15 +154,18 @@ async fn run_scraping_cycle() -> Result<()> {
                 let ho_url = Url::parse(&_downlink.link).context("Failed to parse downlink URL")?;
                 let host = format!("{}://{}", ho_url.scheme(), ho_url.host_str().unwrap_or_default());
 
-                let html = if down_cfg.use_webdriver {
-                    foxfox::get_html(&_downlink.link).await.unwrap_or_default()
+                let html_result = if down_cfg.use_webdriver {
+                    foxfox::get_html(&_downlink.link).await
                 } else {
                     utils::get_text_response(&_downlink.link).await
                 };
 
-                if !html.is_empty() {
-                    let mut _list: Vec<Images> = dc::parse_dcimage(&html, path, &_downlink.title, &host)?;
-                    down_image_list.append(&mut _list);
+                match html_result {
+                    Ok(html) if !html.is_empty() => {
+                        let mut _list: Vec<Images> = dc::parse_dcimage(&html, path, &_downlink.title, &host)?;
+                        down_image_list.append(&mut _list);
+                    }
+                    _ => {}
                 }
             }
         }
@@ -171,10 +173,16 @@ async fn run_scraping_cycle() -> Result<()> {
 
     if config.enable_download {
         for _down in down_image_list.iter_mut() {
-            let data = utils::get_byte_response(&_down.link, &_down.refferer).await;
-            if !data.is_empty() {
-                let path = format!("{}/{}", &_down.path, &_down.subpath);
-                let _ = utils::make_file(&path, &_down.file_name, &data).await;
+            match utils::get_byte_response_result(&_down.link, &_down.refferer).await {
+                Ok(data) if !data.is_empty() => {
+                    let path = PathBuf::from(&_down.path).join(&_down.subpath);
+                    let path_str = path.to_string_lossy();
+                    let _ = utils::make_file(&path_str, &_down.file_name, &data).await;
+                }
+                Err(e) => {
+                    utils::logger(&format!("Failed to download {}: {}", _down.link, e)).await;
+                }
+                _ => {}
             }
         }
     }
@@ -185,6 +193,15 @@ async fn run_scraping_cycle() -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // 파일 로깅 설정 (logs 디렉토리에 날짜별 로테이션)
+    let file_appender = tracing_appender::rolling::daily("./logs", "scraper.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer())
+        .with(tracing_subscriber::fmt::layer().with_writer(non_blocking))
+        .init();
+
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(SCRAPE_INTERVAL_SECS));
     loop {
         interval.tick().await;
