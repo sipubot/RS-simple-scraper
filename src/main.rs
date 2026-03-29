@@ -74,6 +74,8 @@ async fn scrape_site(site: Site, nick_list: &[Nick]) -> Vec<List> {
 async fn run_scraping_cycle() -> Result<()> {
     let config_json = utils::file_read_to_json(CONFIG_PATH).await.unwrap_or_default();
     let config: Config = serde_json::from_value(config_json).unwrap_or_default();
+    let config_json = utils::file_read_to_json(CONFIG_PATH).await?;
+    let config: Config = serde_json::from_value(config_json).context("Failed to parse config.json structure")?;
 
     let site_list = config.sites;
     let mut save_list = config.saves;
