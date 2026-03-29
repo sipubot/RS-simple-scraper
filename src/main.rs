@@ -116,6 +116,11 @@ async fn run_scraping_cycle() -> Result<()> {
         }
     }
 
+    // 시간순 정렬 (최신순) - scrape 결과가 비동기 수집되므로 이 단계에서 보정
+    dc_list.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    fm_list.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    mp_list.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
     for _save in save_list.iter_mut() {
         match _save.host.as_ref() {
             "dc" => {
