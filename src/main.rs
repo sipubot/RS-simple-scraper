@@ -7,6 +7,7 @@ use futures::future::join_all;
 use anyhow::{Result, Context};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
+use flexi_logger::{Logger, FileSpec, Cleanup, Criterion, Naming, WriteMode};
 
 mod utils;
 mod foxfox;
@@ -15,6 +16,26 @@ mod scrapers;
 
 use models::{List, Site, Down, Images, Nick, Config};
 use scrapers::{dc, fm, mp};
+
+/// 로거 초기화 - 파일 크기 10MB 제한, 10개 파일 보관
+fn init_logger() {
+    Logger::try_with_str("info")
+        .unwrap_or_else(|_| Logger::try_with_str("info").unwrap())
+        .log_to_file(
+            FileSpec::default()
+                .directory("./logs")
+                .basename("scraper")
+                .suffix("log")
+        )
+        .rotate(
+            Criterion::Size(10 * 1024 * 1024), // 10MB 크기 제한
+            Naming::Timestamps,
+            Cleanup::KeepLogFiles(10), // 10개 파일 보관
+        )
+        .write_mode(WriteMode::Async)
+        .start()
+        .expect("Failed to start logger");
+}
 
 // Configuration file path
 const CONFIG_PATH: &str = "./config.json";
@@ -193,13 +214,11 @@ async fn run_scraping_cycle() -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // 파일 로깅 설정 (logs 디렉토리에 날짜별 로테이션)
-    let file_appender = tracing_appender::rolling::daily("./logs", "scraper.log");
-    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    // 파일 로깅 설정 (10MB 크기 제한, 10개 파일 보관)
+    init_logger();
     
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
-        .with(tracing_subscriber::fmt::layer().with_writer(non_blocking))
         .init();
 
     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(SCRAPE_INTERVAL_SECS));
