@@ -1,254 +1,269 @@
-use std::path::Path;
-use std::collections::HashSet;
+use anyhow::{Context, Result};
 use chrono::Utc;
 use chrono_tz::Asia::Seoul;
-use url::Url;
 use futures::future::join_all;
-use anyhow::{Result, Context};
+use std::collections::HashSet;
+use std::path::Path;
+use url::Url;
 
-mod utils;
 mod foxfox;
 mod models;
 mod scrapers;
+mod utils;
 
-use models::{List, Site, Down, Images, Nick, Config};
+use models::{Config, Down, Images, List, Nick, Site};
 use scrapers::{dc, fm, mp};
 
 // Configuration file path
 const CONFIG_PATH: &str = "./config.json";
 
 // Timing constants (in seconds)
-const SCRAPE_INTERVAL_SECS: u64 = 300;      // 5 minutes between scraping cycles
-const REQUEST_DELAY_MS: u64 = 500;          // Delay between concurrent requests
-const NEW_MARKER_AGE_SECS: i64 = 28800;     // 8 hours - posts newer than this keep "new" flag
-const MAX_POST_AGE_SECS: i64 = 259200;      // 72 hours - posts older than this are filtered out
+const SCRAPE_INTERVAL_SECS: u64 = 300; // 5 minutes between scraping cycles
+const REQUEST_DELAY_MS: u64 = 500; // Delay between concurrent requests
+const NEW_MARKER_AGE_SECS: i64 = 28800; // 8 hours - posts newer than this keep "new" flag
+const MAX_POST_AGE_SECS: i64 = 259200; // 72 hours - posts older than this are filtered out
 
 async fn scrape_site(site: Site, nick_list: &[Nick]) -> Vec<List> {
-match site.host.as_str() {
-"dc" => {
-// 파일 다운로드가 아닌 일반 스크랩 시에는 WebDriver를 사용하지 않습니다.
-let html = utils::get_text_response(&site.url).await;
+    match site.host.as_str() {
+        "dc" => {
+            // 파일 다운로드가 아닌 일반 스크랩 시에는 WebDriver를 사용하지 않습니다.
+            let html = utils::get_text_response(&site.url).await;
 
-if !html.is_empty() {
-let (results, logs) = dc::parse_dc(&html, &site.url, nick_list);
-for log_link in logs {
-utils::logger(&log_link).await;
-}
-results.unwrap_or_default()
-} else {
-vec![]
-}
-},
-"fm" => {
-let html = utils::get_text_response(&site.url).await;
-if !html.is_empty() {
-fm::parse_fm(&html).unwrap_or_default()
-} else {
-vec![]
-}
-},
-"mp" => {
-let html = utils::get_text_response_bot(&site.url).await;
-if !html.is_empty() {
-mp::parse_mp(&html).unwrap_or_default()
-} else {
-vec![]
-}
-},
-"mp_low" => {
-let html = utils::get_text_response_bot(&site.url).await;
-if !html.is_empty() {
-mp::parse_mp_part_low(&html).unwrap_or_default()
-} else {
-vec![]
-}
-},
-_ => {
-println!("not matched site: {}", site.host);
-utils::logger(&format!("not matched site: {}", site.host)).await;
-vec![]
-}
-}
+            if !html.is_empty() {
+                let (results, logs) = dc::parse_dc(&html, &site.url, nick_list);
+                for log_link in logs {
+                    utils::logger(&log_link).await;
+                }
+                results.unwrap_or_default()
+            } else {
+                vec![]
+            }
+        }
+        "fm" => {
+            let html = utils::get_text_response(&site.url).await;
+            if !html.is_empty() {
+                fm::parse_fm(&html).unwrap_or_default()
+            } else {
+                vec![]
+            }
+        }
+        "mp" => {
+            let html = utils::get_text_response_bot(&site.url).await;
+            if !html.is_empty() {
+                mp::parse_mp(&html).unwrap_or_default()
+            } else {
+                vec![]
+            }
+        }
+        "mp_low" => {
+            let html = utils::get_text_response_bot(&site.url).await;
+            if !html.is_empty() {
+                mp::parse_mp_part_low(&html).unwrap_or_default()
+            } else {
+                vec![]
+            }
+        }
+        _ => {
+            println!("not matched site: {}", site.host);
+            utils::logger(&format!("not matched site: {}", site.host)).await;
+            vec![]
+        }
+    }
 }
 
 async fn run_scraping_cycle() -> Result<()> {
-let config_json = utils::file_read_to_json(CONFIG_PATH).await.unwrap_or_default();
-let config: Config = serde_json::from_value(config_json).unwrap_or_default();
+    let config_json = utils::file_read_to_json(CONFIG_PATH)
+        .await
+        .unwrap_or_default();
+    let config: Config = serde_json::from_value(config_json).unwrap_or_default();
 
-let site_list = config.sites;
-let mut save_list = config.saves;
-let down_list = config.downs;
-let nick_list = config.nicks;
+    let site_list = config.sites;
+    let mut save_list = config.saves;
+    let down_list = config.downs;
+    let nick_list = config.nicks;
 
-let mut dc_list: Vec<List> = vec![];
-let mut fm_list: Vec<List> = vec![];
-let mut mp_list: Vec<List> = vec![];
+    let mut dc_list: Vec<List> = vec![];
+    let mut fm_list: Vec<List> = vec![];
+    let mut mp_list: Vec<List> = vec![];
 
-let mut dc_down_list: Vec<List> = vec![];
-let mut down_image_list = vec![];
+    let mut dc_down_list: Vec<List> = vec![];
+    let mut down_image_list = vec![];
 
-let nick_list = std::sync::Arc::new(nick_list);
+    let nick_list = std::sync::Arc::new(nick_list);
 
-let scrape_tasks: Vec<_> = site_list.into_iter().enumerate().map(|(i, site)| {
-let nick_list = std::sync::Arc::clone(&nick_list);
-tokio::spawn(async move {
-if i > 0 {
-let delay = std::time::Duration::from_millis((i as u64) * REQUEST_DELAY_MS);
-tokio::time::sleep(delay).await;
-}
-scrape_site(site, &nick_list).await
-})
-}).collect();
+    let scrape_tasks: Vec<_> = site_list
+        .into_iter()
+        .enumerate()
+        .map(|(i, site)| {
+            let nick_list = std::sync::Arc::clone(&nick_list);
+            tokio::spawn(async move {
+                if i > 0 {
+                    let delay = std::time::Duration::from_millis((i as u64) * REQUEST_DELAY_MS);
+                    tokio::time::sleep(delay).await;
+                }
+                scrape_site(site, &nick_list).await
+            })
+        })
+        .collect();
 
-let scrape_results: Vec<Vec<List>> = join_all(scrape_tasks).await
-.into_iter()
-.map(|r| r.unwrap_or_default())
-.collect();
+    let scrape_results: Vec<Vec<List>> = join_all(scrape_tasks)
+        .await
+        .into_iter()
+        .map(|r| r.unwrap_or_default())
+        .collect();
 
-for posts in scrape_results {
-for post in posts {
-match post.more.as_str() {
-"디시" => dc_list.push(post),
-"펨코" => fm_list.push(post),
-"엠팍" => mp_list.push(post),
-_ => {}
-}
-}
-}
+    for posts in scrape_results {
+        for post in posts {
+            match post.more.as_str() {
+                "디시" => dc_list.push(post),
+                "펨코" => fm_list.push(post),
+                "엠팍" => mp_list.push(post),
+                _ => {}
+            }
+        }
+    }
 
     // 시간순 정렬 (최신순) - scrape 결과가 비동기 수집되므로 이 단계에서 보정
     dc_list.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
     fm_list.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
     mp_list.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
-for _save in save_list.iter_mut() {
-match _save.host.as_ref() {
-"dc" => {
-let _loadfile = load_file_to_list(&_save.json_path).await;
-dc_down_list = newer_to_list(&dc_list, &_loadfile);
-let merged = merge_to_list(&dc_list, &_loadfile);
-let save_json = serde_json::to_value(merged).context("Failed to serialize dc list")?;
-utils::file_save_from_json(&_save.json_path, &save_json).await?;
-},
-"fm" => {
-let _loadfile = load_file_to_list(&_save.json_path).await;
-let merged = merge_to_list(&fm_list, &_loadfile);
-let save_json = serde_json::to_value(merged).context("Failed to serialize fm list")?;
-utils::file_save_from_json(&_save.json_path, &save_json).await?;
-},
-"mp" => {
-let _loadfile = load_file_to_list(&_save.json_path).await;
-let merged = merge_to_list(&mp_list, &_loadfile);
-let save_json = serde_json::to_value(merged).context("Failed to serialize mp list")?;
-utils::file_save_from_json(&_save.json_path, &save_json).await?;
-},
-_ => {}
-}
-}
+    for _save in save_list.iter_mut() {
+        match _save.host.as_ref() {
+            "dc" => {
+                let _loadfile = load_file_to_list(&_save.json_path).await;
+                dc_down_list = newer_to_list(&dc_list, &_loadfile);
+                let merged = merge_to_list(&dc_list, &_loadfile);
+                let save_json =
+                    serde_json::to_value(merged).context("Failed to serialize dc list")?;
+                utils::file_save_from_json(&_save.json_path, &save_json).await?;
+            }
+            "fm" => {
+                let _loadfile = load_file_to_list(&_save.json_path).await;
+                let merged = merge_to_list(&fm_list, &_loadfile);
+                let save_json =
+                    serde_json::to_value(merged).context("Failed to serialize fm list")?;
+                utils::file_save_from_json(&_save.json_path, &save_json).await?;
+            }
+            "mp" => {
+                let _loadfile = load_file_to_list(&_save.json_path).await;
+                let merged = merge_to_list(&mp_list, &_loadfile);
+                let save_json =
+                    serde_json::to_value(merged).context("Failed to serialize mp list")?;
+                utils::file_save_from_json(&_save.json_path, &save_json).await?;
+            }
+            _ => {}
+        }
+    }
 
-if config.enable_download {
-for _downlink in dc_down_list.iter_mut() {
-if let Some(down_cfg) = find_download_target(&_downlink.title, &down_list) {
-let path = &down_cfg.path;
-let ho_url = Url::parse(&_downlink.link).context("Failed to parse downlink URL")?;
-let host = format!("{}://{}", ho_url.scheme(), ho_url.host_str().unwrap_or_default());
+    if config.enable_download {
+        for _downlink in dc_down_list.iter_mut() {
+            if let Some(down_cfg) = find_download_target(&_downlink.title, &down_list) {
+                let path = &down_cfg.path;
+                let ho_url = Url::parse(&_downlink.link).context("Failed to parse downlink URL")?;
+                let host = format!(
+                    "{}://{}",
+                    ho_url.scheme(),
+                    ho_url.host_str().unwrap_or_default()
+                );
 
-let html = if down_cfg.use_webdriver {
-foxfox::get_html(&_downlink.link).await.unwrap_or_default()
-} else {
-utils::get_text_response(&_downlink.link).await
-};
+                let html = if down_cfg.use_webdriver {
+                    foxfox::get_html(&_downlink.link).await.unwrap_or_default()
+                } else {
+                    utils::get_text_response(&_downlink.link).await
+                };
 
-if !html.is_empty() {
-let mut _list: Vec<Images> = dc::parse_dcimage(&html, path, &_downlink.title, &host)?;
-down_image_list.append(&mut _list);
-}
-}
-}
-}
+                if !html.is_empty() {
+                    let mut _list: Vec<Images> =
+                        dc::parse_dcimage(&html, path, &_downlink.title, &host)?;
+                    down_image_list.append(&mut _list);
+                }
+            }
+        }
+    }
 
-if config.enable_download {
-for _down in down_image_list.iter_mut() {
-let data = utils::get_byte_response(&_down.link, &_down.refferer).await;
-if !data.is_empty() {
-let path = format!("{}/{}", &_down.path, &_down.subpath);
-let _ = utils::make_file(&path, &_down.file_name, &data).await;
-}
-}
-}
+    if config.enable_download {
+        for _down in down_image_list.iter_mut() {
+            let data = utils::get_byte_response(&_down.link, &_down.refferer).await;
+            if !data.is_empty() {
+                let path = format!("{}/{}", &_down.path, &_down.subpath);
+                let _ = utils::make_file(&path, &_down.file_name, &data).await;
+            }
+        }
+    }
 
-println!("End Of job");
-Ok(())
+    println!("End Of job");
+    Ok(())
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(SCRAPE_INTERVAL_SECS));
-loop {
-interval.tick().await;
-if let Err(e) = run_scraping_cycle().await {
-utils::logger(&format!("Scraping cycle failed: {}", e)).await;
-eprintln!("Scraping cycle failed: {}", e);
-}
-}
+    let mut interval =
+        tokio::time::interval(tokio::time::Duration::from_secs(SCRAPE_INTERVAL_SECS));
+    loop {
+        interval.tick().await;
+        if let Err(e) = run_scraping_cycle().await {
+            utils::logger(&format!("Scraping cycle failed: {}", e)).await;
+            eprintln!("Scraping cycle failed: {}", e);
+        }
+    }
 }
 
 fn find_download_target<'a>(_title: &str, down_list: &'a [Down]) -> Option<&'a Down> {
-for _downtarget in down_list {
-if _title.contains(&_downtarget.title) {
-return Some(_downtarget);
-}
-}
-None
+    for _downtarget in down_list {
+        if _title.contains(&_downtarget.title) {
+            return Some(_downtarget);
+        }
+    }
+    None
 }
 
 async fn load_file_to_list(path: &str) -> Vec<List> {
-if Path::new(path).exists() {
-let load_json = utils::file_read_to_json(path).await.unwrap_or_default();
-let load_list: Vec<List> = serde_json::from_value(load_json).unwrap_or_default();
-let _stamp = Utc::now().with_timezone(&Seoul).timestamp();
+    if Path::new(path).exists() {
+        let load_json = utils::file_read_to_json(path).await.unwrap_or_default();
+        let load_list: Vec<List> = serde_json::from_value(load_json).unwrap_or_default();
+        let _stamp = Utc::now().with_timezone(&Seoul).timestamp();
 
-load_list.into_iter()
-.map(|mut x| {
-if _stamp - x.timestamp > NEW_MARKER_AGE_SECS {
-x.new = false;
-}
-x
-})
-.filter(|x| (_stamp - x.timestamp) < MAX_POST_AGE_SECS)
-.collect()
-} else {
-vec![]
-}
+        load_list
+            .into_iter()
+            .map(|mut x| {
+                if _stamp - x.timestamp > NEW_MARKER_AGE_SECS {
+                    x.new = false;
+                }
+                x
+            })
+            .filter(|x| (_stamp - x.timestamp) < MAX_POST_AGE_SECS)
+            .collect()
+    } else {
+        vec![]
+    }
 }
 
 fn newer_to_list(a: &[List], b: &[List]) -> Vec<List> {
-let existing_links: HashSet<&str> = b.iter()
-.map(|item| item.link.as_str())
-.collect();
+    let existing_links: HashSet<&str> = b.iter().map(|item| item.link.as_str()).collect();
 
-a.iter()
-.filter(|item| !existing_links.contains(item.link.as_str()))
-.cloned()
-.collect()
+    a.iter()
+        .filter(|item| !existing_links.contains(item.link.as_str()))
+        .cloned()
+        .collect()
 }
 
 fn merge_to_list(a: &[List], b: &[List]) -> Vec<List> {
-let mut result = Vec::new();
-let mut seen_links = HashSet::new();
+    let mut result = Vec::new();
+    let mut seen_links = HashSet::new();
 
-for item in a {
-if seen_links.insert(item.link.as_str()) {
-result.push(item.clone());
-}
-}
+    for item in a {
+        if seen_links.insert(item.link.as_str()) {
+            result.push(item.clone());
+        }
+    }
 
-for item in b {
-if seen_links.insert(item.link.as_str()) {
-result.push(item.clone());
-}
-}
+    for item in b {
+        if seen_links.insert(item.link.as_str()) {
+            result.push(item.clone());
+        }
+    }
 
-result.sort_by(|x, y| y.timestamp.cmp(&x.timestamp));
-result
+    result.sort_by(|x, y| y.timestamp.cmp(&x.timestamp));
+    result
 }
