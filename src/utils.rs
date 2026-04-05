@@ -1,4 +1,3 @@
-use chrono::prelude::*;
 use serde_json::{json, Value};
 use std::path::Path;
 use std::time::Duration;
@@ -7,7 +6,11 @@ use lazy_static::lazy_static;
 use tokio::fs::{self, File, OpenOptions};
 use tokio::io::AsyncWriteExt;
 use anyhow::{Result, Context};
+use chrono::Utc;
+use std::cmp::Reverse;
 
+const MAX_LOG_FILES: usize = 10;
+const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024; // 10MB
 // HTTP client configuration constants
 const HTTP_TIMEOUT_SECS: u64 = 30;
 const POOL_MAX_IDLE_PER_HOST: usize = 10;
@@ -37,14 +40,54 @@ lazy_static! {
 
 pub async fn logger(_log: &str) {
     let filename = Utc::now().format("%Y-%m").to_string();
-    let utc = Utc::now().format("%Y-%m-%d  %H:%M:%S").to_string();
+    let utc = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
     let log_dir = "./log";
     let pathstr = format!("{}/log{}.log", log_dir, filename);
 
+    // 로그 디렉토리 생성
     if !Path::new(log_dir).exists() {
-        let _ = fs::create_dir_all(log_dir).await;
+        if let Err(e) = fs::create_dir_all(log_dir).await {
+            eprintln!("Failed to create log directory: {}", e);
+            return;
+        }
     }
 
+    // 파일 용량 체크
+    if let Ok(meta) = fs::metadata(&pathstr).await {
+        if meta.len() >= MAX_FILE_SIZE {
+            // 새 파일 이름에 타임스탬프 추가
+            let new_filename = Utc::now().format("%Y-%m-%d_%H-%M-%S").to_string();
+            let new_path = format!("{}/log{}.log", log_dir, new_filename);
+            if let Err(e) = File::create(&new_path).await {
+                eprintln!("Failed to create new log file: {}", e);
+                return;
+            }
+        }
+    }
+
+    // 최근 10개 파일만 유지
+    if let Ok(mut entries) = fs::read_dir(log_dir).await {
+        let mut files = Vec::new();
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let modified = entry.metadata().await
+                .and_then(|m| m.modified())
+                .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+            files.push((entry, modified));
+        }
+
+        // 수정 시간 기준 정렬
+        files.sort_by_key(|(_, modified)| Reverse(*modified));
+
+        if files.len() > MAX_LOG_FILES {
+            for (entry, _) in files.iter().skip(MAX_LOG_FILES) {
+                if let Err(e) = fs::remove_file(entry.path()).await {
+                    eprintln!("Failed to remove old log file: {}", e);
+                }
+            }
+        }
+    }
+
+    // 로그 쓰기
     let mut file = match OpenOptions::new()
         .write(true)
         .append(true)
