@@ -31,9 +31,9 @@ async fn scrape_site(site: Site, nick_list: &[Nick]) -> Vec<List> {
 
             if !html.is_empty() {
                 let (results, logs) = dc::parse_dc(&html, &site.url, nick_list);
-                for log_link in logs {
-                    utils::logger(&log_link).await;
-                }
+                //for log_link in logs {
+                //    //utils::logger(&log_link).await;
+                //}
                 results.unwrap_or_default()
             } else {
                 vec![]
@@ -203,7 +203,7 @@ async fn main() -> Result<()> {
     loop {
         interval.tick().await;
         if let Err(e) = run_scraping_cycle().await {
-            utils::logger(&format!("Scraping cycle failed: {}", e)).await;
+            //utils::logger(&format!("Scraping cycle failed: {}", e)).await;
             eprintln!("Scraping cycle failed: {}", e);
         }
     }
