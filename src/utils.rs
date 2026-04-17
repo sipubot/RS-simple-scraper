@@ -3,14 +3,12 @@ use std::path::Path;
 use std::time::Duration;
 use bytes::Bytes;
 use lazy_static::lazy_static;
-use tokio::fs::{self, File, OpenOptions};
+use tokio::fs::{self, File};
 use tokio::io::AsyncWriteExt;
 use anyhow::{Result, Context};
-use chrono::Utc;
-use std::cmp::Reverse;
+// ⭐ log 매크로 사용 (flexi_logger가 이 로그들을 받아 처리합니다)
+use log::{info, warn, error};
 
-const MAX_LOG_FILES: usize = 10;
-const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024; // 10MB
 // HTTP client configuration constants
 const HTTP_TIMEOUT_SECS: u64 = 30;
 const POOL_MAX_IDLE_PER_HOST: usize = 10;
@@ -38,72 +36,10 @@ lazy_static! {
     };
 }
 
-pub async fn logger(_log: &str) {
-    let filename = Utc::now().format("%Y-%m").to_string();
-    let utc = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    let log_dir = "./log";
-    let pathstr = format!("{}/log{}.log", log_dir, filename);
-
-    // 로그 디렉토리 생성
-    if !Path::new(log_dir).exists() {
-        if let Err(e) = fs::create_dir_all(log_dir).await {
-            eprintln!("Failed to create log directory: {}", e);
-            return;
-        }
-    }
-
-    // 파일 용량 체크
-    if let Ok(meta) = fs::metadata(&pathstr).await {
-        if meta.len() >= MAX_FILE_SIZE {
-            // 새 파일 이름에 타임스탬프 추가
-            let new_filename = Utc::now().format("%Y-%m-%d_%H-%M-%S").to_string();
-            let new_path = format!("{}/log{}.log", log_dir, new_filename);
-            if let Err(e) = File::create(&new_path).await {
-                eprintln!("Failed to create new log file: {}", e);
-                return;
-            }
-        }
-    }
-
-    // 최근 10개 파일만 유지
-    if let Ok(mut entries) = fs::read_dir(log_dir).await {
-        let mut files = Vec::new();
-        while let Ok(Some(entry)) = entries.next_entry().await {
-            let modified = entry.metadata().await
-                .and_then(|m| m.modified())
-                .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
-            files.push((entry, modified));
-        }
-
-        // 수정 시간 기준 정렬
-        files.sort_by_key(|(_, modified)| Reverse(*modified));
-
-        if files.len() > MAX_LOG_FILES {
-            for (entry, _) in files.iter().skip(MAX_LOG_FILES) {
-                if let Err(e) = fs::remove_file(entry.path()).await {
-                    eprintln!("Failed to remove old log file: {}", e);
-                }
-            }
-        }
-    }
-
-    // 로그 쓰기
-    let mut file = match OpenOptions::new()
-        .write(true)
-        .append(true)
-        .create(true)
-        .open(&pathstr)
-        .await {
-            Ok(f) => f,
-            Err(e) => {
-                eprintln!("Failed to open log file {}: {}", pathstr, e);
-                return;
-            }
-        };
-
-    if let Err(e) = file.write_all(format!("[{}]:{}\n", utc, _log).as_bytes()).await {
-        eprintln!("Couldn't write to log file: {}", e);
-    }
+/// ⭐ 기존의 복잡한 수동 로깅 함수를 대체합니다.
+/// 이제 이 함수를 호출하는 대신 직접 log::info! 등을 사용해도 됩니다.
+pub fn logger(msg: &str) {
+    info!("{}", msg);
 }
 
 pub fn path_exist(_path: &str) -> bool {
@@ -130,7 +66,8 @@ pub async fn file_read_to_json(_filepath: &str) -> Result<Value> {
             serde_json::from_str(&content).context("Failed to parse JSON")
         }
         Err(e) => {
-            logger(&format!("Error reading {}: {}", _filepath, e)).await;
+            // ⭐ 수동 logger() 대신 log 매크로 사용
+            error!("Error reading {}: {}", _filepath, e);
             Ok(json_result(&e.to_string()))
         }
     }
@@ -149,13 +86,13 @@ pub async fn get_text_response(_url: &str) -> String {
             match resp.text().await {
                 Ok(result) => result,
                 Err(e) => {
-                    logger(&format!("Failed to get text from {}: {}", _url, e)).await;
+                    warn!("Failed to get text from {}: {}", _url, e);
                     String::new()
                 }
             }
         },
         Err(e) => {
-            logger(&format!("Failed to request {}: {}", _url, e)).await;
+            warn!("Failed to request {}: {}", _url, e);
             String::new()
         }
     }
@@ -167,13 +104,13 @@ pub async fn get_byte_response(_url: &str, reffer: &str) -> Bytes {
             match resp.bytes().await {
                 Ok(bin) => bin,
                 Err(e) => {
-                    logger(&format!("Failed to get bytes from {}: {}", _url, e)).await;
+                    warn!("Failed to get bytes from {}: {}", _url, e);
                     Bytes::new()
                 }
             }
         },
         Err(e) => {
-            logger(&format!("Failed to request bytes from {}: {}", _url, e)).await;
+            warn!("Failed to request bytes from {}: {}", _url, e);
             Bytes::new()
         }
     }
@@ -185,13 +122,13 @@ pub async fn get_text_response_bot(_url: &str) -> String {
             match resp.text().await {
                 Ok(result) => result,
                 Err(e) => {
-                    logger(&format!("Failed to get bot text from {}: {}", _url, e)).await;
+                    warn!("Failed to get bot text from {}: {}", _url, e);
                     String::new()
                 }
             }
         },
         Err(e) => {
-            logger(&format!("Failed to request bot text from {}: {}", _url, e)).await;
+            warn!("Failed to request bot text from {}: {}", _url, e);
             String::new()
         }
     }

@@ -30,7 +30,7 @@ async fn scrape_site(site: Site, nick_list: &[Nick]) -> Vec<List> {
             let html = utils::get_text_response(&site.url).await;
 
             if !html.is_empty() {
-                let (results, logs) = dc::parse_dc(&html, &site.url, nick_list);
+                let (results, _logs) = dc::parse_dc(&html, &site.url, nick_list);
                 //for log_link in logs {
                 //    //utils::logger(&log_link).await;
                 //}
@@ -65,7 +65,7 @@ async fn scrape_site(site: Site, nick_list: &[Nick]) -> Vec<List> {
         }
         _ => {
             println!("not matched site: {}", site.host);
-            utils::logger(&format!("not matched site: {}", site.host)).await;
+            utils::logger(&format!("not matched site: {}", site.host));
             vec![]
         }
     }
