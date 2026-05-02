@@ -16,14 +16,14 @@ chrono-tz = "0.10.4"                                         # 최신
 async-trait = "0.1.89"                                       # 최신
 serde = { version = "1.0.228", features = ["derive"] }       # 최신
 flexi_logger = { version = "0.31", features = ["async"] }    # 최신
-log = "0.4.22"                                               # 최신 (업데이트됨)
+log = "0.4.29"                                               # 최신 (업데이트됨)
 serde_json = "1.0.149"                                       # 최신
-reqwest = { version = "0.12.4", features = ["blocking", "socks", "json"] } # 최신 (업데이트됨)
-scraper = "0.20.0"                                           # 최신 (업데이트됨)
+reqwest = { version = "0.13.3", features = ["blocking", "socks", "json"] } # 최신 (업데이트됨)
+scraper = "0.26.0"                                           # 최신 (업데이트됨)
 anyhow = "1.0.102"                                           # 최신
 bytes = "1.11.1"                                             # 최신
 regex = "1.12.3"                                             # 최신
 url = "2.5.8"                                                # 최신
-thirtyfour = "0.36.1"                                        # 최신
+thirtyfour = "0.36.3"                                        # 최신
 lazy_static = "1.5.0"                                        # 최신
 futures = "0.3.32"                                           # 최신
