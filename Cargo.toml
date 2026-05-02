@@ -19,7 +19,7 @@ flexi_logger = { version = "0.31", features = ["async"] }    # 최신
 log = "0.4.22"                                               # 최신 (업데이트됨)
 serde_json = "1.0.149"                                       # 최신
 reqwest = { version = "0.13.3", features = ["blocking", "socks", "json"] } # 최신 (업데이트됨)
-scraper = "0.20.0"                                           # 최신 (업데이트됨)
+scraper = "0.26.0"                                           # 최신 (업데이트됨)
 anyhow = "1.0.102"                                           # 최신
 bytes = "1.11.1"                                             # 최신
 regex = "1.12.3"                                             # 최신
