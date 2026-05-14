@@ -224,15 +224,19 @@ async fn load_file_to_list(path: &str) -> Vec<List> {
         let load_list: Vec<List> = serde_json::from_value(load_json).unwrap_or_default();
         let _stamp = Utc::now().with_timezone(&Seoul).timestamp();
 
+        let mut seen_links = HashSet::new();
         load_list
             .into_iter()
-            .map(|mut x| {
+            .filter_map(|mut x| {
                 if _stamp - x.timestamp > NEW_MARKER_AGE_SECS {
                     x.new = false;
                 }
-                x
+                if (_stamp - x.timestamp) < MAX_POST_AGE_SECS && seen_links.insert(x.link.clone()) {
+                    Some(x)
+                } else {
+                    None
+                }
             })
-            .filter(|x| (_stamp - x.timestamp) < MAX_POST_AGE_SECS)
             .collect()
     } else {
         vec![]

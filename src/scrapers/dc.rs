@@ -5,8 +5,8 @@ use url::Url;
 use anyhow::{Result, Context};
 use crate::models::{List, Nick, Images};
 
-// Post age filter constant (48 hours in seconds)
-const MAX_POST_AGE_SECS: i64 = 172800;
+// Post age filter constant (24 hours in seconds)
+const MAX_POST_AGE_SECS: i64 = 86400;
 
 pub fn parse_dc(html: &str, site_url: &str, nick_list: &[Nick]) -> (Result<Vec<List>>, Vec<String>) {
     let mut _list: Vec<List> = vec![];
