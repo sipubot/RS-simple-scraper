@@ -45,5 +45,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cargo release ${{ github.event.inputs.level }} --no-publish --yes
+          cargo release ${{ github.event.inputs.level || 'patch' }} --execute --no-confirm --no-publish
           git push origin --follow-tags
