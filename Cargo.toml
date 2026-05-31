@@ -1,6 +1,6 @@
 [package]
 name = "textminer"
-version = "1.2.2"
+version = "1.2.3"
 authors = ["SIPU <ddasik00@naver.com>"]
 edition = "2024"
 
