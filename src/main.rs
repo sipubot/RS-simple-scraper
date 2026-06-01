@@ -112,13 +112,18 @@ async fn run_scraping_cycle() -> Result<()> {
         .map(|r| r.unwrap_or_default())
         .collect();
 
+    //단순 푸시가 아니라 중복 제거를 해야함 링크 주소기준으로 중복 제거
+    let mut seen_links = std::collections::HashSet::new();
+
     for posts in scrape_results {
         for post in posts {
-            match post.more.as_str() {
-                "디시" => dc_list.push(post),
-                "펨코" => fm_list.push(post),
-                "엠팍" => mp_list.push(post),
-                _ => {}
+            if seen_links.insert(post.link.clone()) {
+                match post.more.as_str() {
+                    "디시" => dc_list.push(post),
+                    "펨코" => fm_list.push(post),
+                    "엠팍" => mp_list.push(post),
+                    _ => {}
+                }
             }
         }
     }
