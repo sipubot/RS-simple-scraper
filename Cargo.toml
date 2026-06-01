@@ -8,9 +8,16 @@ edition = "2024"
 opt-level = 'z'
 lto = true
 codegen-units = 1
+panic = 'abort'
+strip = true
+debug = false
+
+[profile.release.package."*"]
+# 외부 라이브러리들도 최대로 압축하여 빌드
+opt-level = 'z'
 
 [dependencies]
-tokio = { version = "1.52.3", features = ["full"] }          # 최신
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "net", "time"] } # 필요한 기능만 선택
 chrono = { version = "0.4.44", default-features = false, features = ["clock", "std"] } # 최신
 chrono-tz = "0.10.4"                                         # 최신
 async-trait = "0.1.89"                                       # 최신
@@ -24,6 +31,6 @@ anyhow = "1.0.102"                                           # 최신
 bytes = "1.11.1"                                             # 최신
 regex = "1.12.3"                                             # 최신
 url = "2.5.8"                                                # 최신
-thirtyfour = "0.36.3"                                        # 최신
+thirtyfour = "0.37.1"                                        # 최신
 lazy_static = "1.5.0"                                        # 최신
 futures = "0.3.32"                                           # 최신
