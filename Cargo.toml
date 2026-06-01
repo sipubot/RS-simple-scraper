@@ -1,6 +1,6 @@
 [package]
 name = "textminer"
-version = "1.2.2"
+version = "1.2.4"
 authors = ["SIPU <ddasik00@naver.com>"]
 edition = "2024"
 
@@ -24,6 +24,6 @@ anyhow = "1.0.102"                                           # 최신
 bytes = "1.11.1"                                             # 최신
 regex = "1.12.3"                                             # 최신
 url = "2.5.8"                                                # 최신
-thirtyfour = "0.37.1"                                        # 최신
+thirtyfour = "0.36.3"                                        # 최신
 lazy_static = "1.5.0"                                        # 최신
 futures = "0.3.32"                                           # 최신
