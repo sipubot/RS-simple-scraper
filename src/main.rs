@@ -112,18 +112,15 @@ async fn run_scraping_cycle() -> Result<()> {
         .map(|r| r.unwrap_or_default())
         .collect();
 
-    //단순 푸시가 아니라 중복 제거를 해야함 링크 주소기준으로 중복 제거
-    let mut seen_links = std::collections::HashSet::new();
+    //중복 제거안해도 나중에 정리됨
 
     for posts in scrape_results {
         for post in posts {
-            if seen_links.insert(post.link.clone()) {
-                match post.more.as_str() {
-                    "디시" => dc_list.push(post),
-                    "펨코" => fm_list.push(post),
-                    "엠팍" => mp_list.push(post),
-                    _ => {}
-                }
+            match post.more.as_str() {
+                "디시" => dc_list.push(post),
+                "펨코" => fm_list.push(post),
+                "엠팍" => mp_list.push(post),
+                _ => {}
             }
         }
     }
@@ -261,13 +258,14 @@ fn merge_to_list(a: &[List], b: &[List]) -> Vec<List> {
     let mut result = Vec::new();
     let mut seen_links = HashSet::new();
 
-    for item in a {
+    // 먼저 b 리스트의 항목을 추가하면서 링크를 추적합니다.
+    for item in b {
         if seen_links.insert(item.link.as_str()) {
             result.push(item.clone());
         }
     }
 
-    for item in b {
+    for item in a {
         if seen_links.insert(item.link.as_str()) {
             result.push(item.clone());
         }
