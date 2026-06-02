@@ -1823,7 +1823,7 @@ dependencies = [
 
 [[package]]
 name = "textminer"
-version = "1.2.7"
+version = "1.2.8"
 dependencies = [
  "anyhow",
  "async-trait",
