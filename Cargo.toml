@@ -18,7 +18,7 @@ opt-level = 'z'
 
 [dependencies]
 tokio = { version = "1.52.3", default-features = false, features = ["rt-multi-thread", "macros", "net", "time"] } 
-chrono = { version = "0.4.44", default-features = false, features = ["clock", "std"] } # 최신
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] } # 최신
 chrono-tz = "0.10.4"                                         # 최신
 async-trait = "0.1.89"                                       # 최신
 serde = { version = "1.0.228", features = ["derive"] }       # 최신
