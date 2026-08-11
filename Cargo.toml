@@ -31,6 +31,6 @@ anyhow = "1.0.102"                                           # 최신
 bytes = "1.11.1"                                             # 최신
 regex = { version = "1.12.3", default-features = false, features = ["std", "perf", "unicode-perl"] } 
 url = "2.5.8"                                                # 최신
-thirtyfour = "0.37.1"                                        # 최신
+thirtyfour = "0.37.4"                                        # 최신
 lazy_static = "1.5.0"                                        # 최신
 futures = "0.3.32"                                           # 최신
