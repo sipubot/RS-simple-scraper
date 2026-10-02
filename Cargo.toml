@@ -32,5 +32,5 @@ bytes = "1.12.1"                                             # 최신
 regex = { version = "1.13.1", default-features = false, features = ["std", "perf", "unicode-perl"] } 
 url = "2.5.8"                                                # 최신
 thirtyfour = "0.37.5"                                        # 최신
-lazy_static = "1.5.0"                                        # 최신
+lazy_static = "1.5.1"                                        # 최신
 futures = "0.3.34"                                           # 최신
